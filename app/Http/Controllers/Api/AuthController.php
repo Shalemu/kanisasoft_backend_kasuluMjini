@@ -72,7 +72,16 @@ class AuthController extends Controller
             'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ameoa,Ameolewa',
             'children_count' => 'nullable|integer|min:0',
             'zone' => 'nullable|string|max:255',
-            'phone' => 'required|string|max:20|unique:users,phone',
+           'phone' => [
+            'required',
+            'regex:/^255[0-9]{9}$/',
+            'unique:users,phone'
+        ],
+
+           'whatsapp_number' => [
+            'nullable',
+            'regex:/^(0[0-9]{9}|255[0-9]{9})$/'
+        ],
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:6|confirmed',
 
@@ -110,6 +119,7 @@ class AuthController extends Controller
                 'children_count' => $request->children_count,
                 'zone' => $request->zone,
                 'phone' => $request->phone,
+                'whatsapp_number' => $request->whatsapp_number, 
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'role' => null,
@@ -147,7 +157,7 @@ class AuthController extends Controller
                 'lives_alone' => $request->lives_alone,
                 'lives_with' => $request->lives_with,
 
-                'membership_status' => 'active',
+                'membership_status' => 'pending',
             ]);
 
                     // Notify admins
@@ -447,7 +457,7 @@ public function updateProfile(Request $request)
                     'leadership_roles' => $user->leader?->roles->pluck('title') ?? collect(),
                     'created_at' => $user->created_at,
                     'member_id' => null,
-                    'membership_status' => null,
+                    'membership_status' => 'pending',
                     'deactivation_reason' => null,
                     'groups' => [],
                 ];
@@ -528,6 +538,46 @@ public function resetPassword(Request $request)
     ]);
 }
 
+public function rejectUser(Request $request, $id)
+{
+    $request->validate([
+        'reason' => 'required|string|max:255', // admin must provide a reason
+    ]);
 
+    $user = User::find($id);
+
+    if (!$user) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'User not found'
+        ], 404);
+    }
+
+    $member = $user->member;
+
+    if (!$member) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Member profile not found'
+        ], 404);
+    }
+
+    // Save the actual reason
+    $member->update([
+        'membership_status' => 'rejected',
+        'deactivation_reason' => $request->reason,
+    ]);
+
+    // Optionally remove role
+    $user->role = null;
+    $user->save();
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Member rejected successfully',
+        'member' => $member,
+        'user' => $user
+    ]);
+}
 }
 

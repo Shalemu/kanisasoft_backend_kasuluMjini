@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Mail\MemberAuthorizedMail;
 use App\Models\User;
 use App\Models\Member;
 use App\Models\Group;
@@ -17,18 +16,18 @@ use Illuminate\Support\Facades\Mail;
 class SMSController extends Controller
 {
     /**
-     * Send SMS (via GET API) and optional Email
+     * Send SMS via MSHASTRA and optional Email
      */
     public function send(Request $request)
     {
         $request->validate([
-            'type' => 'nullable|string',       // all, male, female, group, individual
-            'receiver' => 'nullable|string',   // group name or individual name/phone
+            'type' => 'nullable|string',        // all, male, female, group, individual
+            'receiver' => 'nullable|string',    // group name or individual name/phone
             'message' => 'required|string',
-            'phone' => 'nullable|string',      // direct phone
-            'email' => 'nullable|email',       // direct email
-            'name' => 'nullable|string',       // name for direct notification
-            'send_email' => 'nullable|boolean',// send email if true
+            'phone' => 'nullable|string',       // direct phone
+            'email' => 'nullable|email',        // direct email
+            'name' => 'nullable|string',        // name for direct notification
+            'send_email' => 'nullable|boolean', // send email if true
         ]);
 
         $type = $request->type;
@@ -41,7 +40,7 @@ class SMSController extends Controller
 
         $recipients = collect();
 
-        // Direct send: if phone/email provided, skip type lookup
+        // Direct send
         if ($directPhone || $directEmail) {
             $recipients->push((object)[
                 'phone' => $directPhone,
@@ -64,17 +63,13 @@ class SMSController extends Controller
                     break;
                 case 'group':
                     $group = Group::where('name', $receiver)->first();
-                    if ($group) {
-                        $recipients = $group->members()->get();
-                    }
+                    if ($group) $recipients = $group->members()->get();
                     break;
                 case 'individual':
                     $user = User::where('full_name', $receiver)
                         ->orWhere('phone', $receiver)
                         ->first();
-                    if ($user) {
-                        $recipients = collect([$user]);
-                    }
+                    if ($user) $recipients = collect([$user]);
                     break;
                 default:
                     return response()->json([
@@ -99,52 +94,52 @@ class SMSController extends Controller
             $recipientPhone = $recipient->phone ?? $recipient->phone_number ?? null;
             $recipientEmail = $recipient->email ?? null;
 
-            // Send SMS via GET API
+            // Send SMS
             if ($recipientPhone) {
-    try {
-        $num = preg_replace('/\D/', '', $recipientPhone);
-        $lastNine = substr($num, -9);
-        $formattedPhone = '255' . $lastNine;
+                try {
+                    // Format phone: take last 9 digits + 255 prefix
+                    $num = preg_replace('/\D/', '', $recipientPhone);
+                    $lastNine = substr($num, -9);
+                    $formattedPhone = '255' . $lastNine;
 
-        // URL-encode message
-        $msgEncoded = urlencode($message);
+                    // URL encode message
+                    $msgEncoded = urlencode($message);
 
-        // Build GET URL
-        $url = "https://mshastra.com/sendurl.aspx?"
-            . "user=" . config('services.mshastra.user')
-            . "&pwd=" . config('services.mshastra.password')
-            . "&senderid=" . config('services.mshastra.sender')
-            . "&mobileno=" . $formattedPhone
-            . "&msgtext=" . $msgEncoded
-            . "&CountryCode=255";
+                    // Build GET URL
+                    $url = "https://mshastra.com/sendurl.aspx?"
+                        . "user=" . config('services.mshastra.user')
+                        . "&pwd=" . config('services.mshastra.password')
+                        . "&senderid=" . config('services.mshastra.sender')
+                        . "&mobileno=" . $formattedPhone
+                        . "&msgtext=" . $msgEncoded
+                        . "&CountryCode=255";
 
-        $response = Http::get($url);
-        $body = $response->body();
+                    $response = Http::get($url);
+                    $body = $response->body();
 
-        // Check response for success
-        if (stripos($body, 'success') !== false || stripos($body, 'Sent') !== false) {
-            $smsStatus = 'Sent';
-        } else {
-            $smsStatus = 'Failed: ' . $body;
-        }
+                    if (stripos($body, 'success') !== false || stripos($body, 'Sent') !== false) {
+                        $smsStatus = 'Sent';
+                    } else {
+                        $smsStatus = 'Failed: ' . $body;
+                    }
 
-        $smsResults[$recipientName] = $smsStatus;
+                    $smsResults[$recipientName] = $smsStatus;
 
-        // Log SMS
-        SmsLog::create([
-            'recipient' => $formattedPhone,
-            'receiver' => $receiver ?? $recipientName,
-            'type' => $type ?? 'direct',
-            'message' => $message,
-            'status' => $smsStatus,
-            'response' => $body,
-        ]);
+                    // Log SMS
+                    SmsLog::create([
+                        'recipient' => $formattedPhone,
+                        'receiver' => $receiver ?? $recipientName,
+                        'type' => $type ?? 'direct',
+                        'message' => $message,
+                        'status' => $smsStatus,
+                        'response' => $body,
+                    ]);
 
-    } catch (\Exception $e) {
-        Log::error("SMS failed for {$recipientPhone}: " . $e->getMessage());
-        $smsResults[$recipientName] = 'Failed: ' . $e->getMessage();
-    }
-}
+                } catch (\Exception $e) {
+                    Log::error("SMS failed for {$recipientPhone}: " . $e->getMessage());
+                    $smsResults[$recipientName] = 'Failed: ' . $e->getMessage();
+                }
+            }
 
             // Send Email if requested
             if ($sendEmail && $recipientEmail) {
@@ -164,7 +159,7 @@ class SMSController extends Controller
                     }
 
                     Mail::to($recipientEmail)->send(
-                        new MemberAuthorizedMail($recipientName, $membershipNumber)
+                        new \App\Mail\MemberAuthorizedMail($recipientName, $membershipNumber)
                     );
 
                     $emailResults[$recipientName] = 'Sent';
@@ -183,9 +178,6 @@ class SMSController extends Controller
         ]);
     }
 
-    /**
-     * Generate unique membership number
-     */
     private function generateMembershipNumber()
     {
         $lastNumber = Member::max(DB::raw('CAST(membership_number AS UNSIGNED)'));
@@ -193,9 +185,6 @@ class SMSController extends Controller
         return str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Retrieve SMS logs
-     */
     public function logs()
     {
         $logs = SmsLog::latest()->limit(100)->get()->map(function ($log) {

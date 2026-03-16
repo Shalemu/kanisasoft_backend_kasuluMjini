@@ -97,6 +97,7 @@ class MembersController extends Controller
                 'children_count' => $request->number_of_children,
                 'zone' => $request->residential_zone,
                 'phone' => $request->phone_number,
+                'whatsapp_number' => $request->whatsapp_number,
                 'email' => $request->email,
                 'password' => Hash::make('defaultpassword'),
                 'role' => 'mshirika',
@@ -116,7 +117,7 @@ class MembersController extends Controller
                 'residential_zone' => $request->residential_zone,
                 'phone_number' => $request->phone_number,
                 'email' => $request->email,
-                'membership_status' => 'active',
+                'membership_status' => 'pending',
                 'membership_number' => $membershipNumber,
             ]);
 
@@ -140,6 +141,7 @@ class MembersController extends Controller
         }
     }
 
+
     public function byUser($userId)
 {
     $member = Member::where('user_id', $userId)->first();
@@ -156,112 +158,50 @@ public function update(Request $request, Member $member)
 {
     $user = $member->user;
 
+        $user = $member->user;
+
+    // Block editing if membership number not set
+    if (empty($member->membership_number)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Huyu mshirika bado hajaidhinishwa, hivyo huwezi kumhariri.',
+        ], 422);
+    }
+
     /*
     |--------------------------------------------------------------------------
-    | Normalize values BEFORE validation
+    | Normalize values
     |--------------------------------------------------------------------------
     */
 
-    // Normalize gender
-    $request->merge([
-        'gender' => match ($request->gender) {
-            'Mwanaume' => 'M',
-            'Mwanamke' => 'F',
-            default => $request->gender,
-        },
-    ]);
+    $gender = match ($request->gender) {
+        'Mwanaume' => 'M',
+        'Mwanamke' => 'F',
+        default => $request->gender,
+    };
 
-    // Normalize marital status (frontend → backend standard)
-    $request->merge([
-        'marital_status' => match ($request->marital_status) {
-            'Ndoa' => $request->gender === 'F' ? 'Ameolewa' : 'Ameoa',
-            'Bila ndoa' => $request->gender === 'F' ? 'Hajaolewa' : 'Hajaoa',
-            'Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane' => $request->marital_status,
-            default => null,
-        },
-    ]);
+    $maritalStatus = match ($request->marital_status) {
+        'Ndoa' => $gender === 'F' ? 'Ameolewa' : 'Ameoa',
+        'Bila ndoa' => $gender === 'F' ? 'Hajaolewa' : 'Hajaoa',
+        default => $request->marital_status,
+    };
 
-    // Normalize booleans (important for frontend)
-    $request->merge([
-        'lives_alone' => filter_var($request->lives_alone, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
-        'is_authorized' => filter_var($request->is_authorized, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
-    ]);
+    $livesAlone = filter_var($request->lives_alone, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $isAuthorized = filter_var($request->is_authorized, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
-    // Clear spouse_name if NOT married
-    if (!in_array($request->marital_status, ['Ameoa', 'Ameolewa'])) {
+    if (!in_array($maritalStatus, ['Ameoa', 'Ameolewa'])) {
         $request->merge(['spouse_name' => null]);
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Validation rules
+    | Format phone
     |--------------------------------------------------------------------------
     */
 
-    $phoneRule = ['nullable', 'string', 'max:20'];
-    $emailRule = ['nullable', 'email', 'max:255'];
-
-    if ($user) {
-        $phoneRule[] = Rule::unique('users', 'phone')->ignore($user->id);
-        $emailRule[] = Rule::unique('users', 'email')->ignore($user->id);
-    } else {
-        $phoneRule[] = 'unique:users,phone';
-        $emailRule[] = 'unique:users,email';
-    }
-
-    $validator = Validator::make($request->all(), [
-        // Basic info
-        'full_name' => 'required|string|max:255',
-        'gender' => 'required|in:M,F',
-        'birth_date' => 'nullable|date',
-        'birth_place' => 'nullable|string|max:255',
-        'marital_status' => 'nullable|in:Ameoa,Ameolewa,Hajaoa,Hajaolewa,Mjane,Mgane',
-        'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ameoa,Ameolewa',
-        'number_of_children' => 'nullable|integer|min:0',
-        'residential_zone' => 'nullable|string|max:255',
-        'phone_number' => $phoneRule,
-        'email' => $emailRule,
-
-        // Imani
-        'date_of_conversion' => 'nullable|date',
-        'church_of_conversion' => 'nullable|string|max:255',
-        'baptism_date' => 'nullable|date',
-        'baptism_place' => 'nullable|string|max:255',
-        'baptizer_name' => 'nullable|string|max:255',
-        'baptizer_title' => 'nullable|string|max:255',
-        'previous_church' => 'nullable|string|max:255',
-        'church_service' => 'nullable|string|max:255',
-        'service_duration' => 'nullable|string|max:255',
-
-        // Education & work
-        'education_level' => 'nullable|string|max:255',
-        'profession' => 'nullable|string|max:255',
-        'occupation' => 'nullable|string|max:255',
-        'work_place' => 'nullable|string|max:255',
-        'work_contact' => 'nullable|string|max:255',
-
-        // Family
-        'lives_alone' => 'nullable|boolean',
-        'lives_with' => 'nullable|string|max:255',
-        'family_role' => 'nullable|string|max:255',
-        'live_with_who' => 'nullable|string|max:255',
-        'next_of_kin' => 'nullable|string|max:255',
-        'next_of_kin_phone' => 'nullable|string|max:20',
-
-        // Membership
-        'membership_number' => 'nullable|string|max:255',
-        'verified_by' => 'nullable|string|max:255',
-        'membership_start_date' => 'nullable|date',
-        'membership_status' => 'nullable|string|max:50',
-        'deactivation_reason' => 'nullable|string|max:255',
-        'is_authorized' => 'nullable|boolean',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => 'error',
-            'errors' => $validator->errors(),
-        ], 422);
+    $formattedPhone = preg_replace('/\D/', '', $request->phone_number ?? '');
+    if ($formattedPhone && str_starts_with($formattedPhone, '0')) {
+        $formattedPhone = '255' . substr($formattedPhone, 1);
     }
 
     try {
@@ -269,39 +209,30 @@ public function update(Request $request, Member $member)
 
         /*
         |--------------------------------------------------------------------------
-        | Format phone number
+        | Update or create user
         |--------------------------------------------------------------------------
         */
-        $formattedPhone = preg_replace('/\D/', '', $request->phone_number ?? '');
-        if ($formattedPhone && str_starts_with($formattedPhone, '0')) {
-            $formattedPhone = '255' . substr($formattedPhone, 1);
-        }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Update or create User
-        |--------------------------------------------------------------------------
-        */
         if ($user) {
             $user->update([
-                'full_name' => $request->full_name,
-                'gender' => $request->gender,
-                'birth_date' => $request->birth_date,
-                'birth_place' => $request->birth_place,
-                'marital_status' => $request->marital_status,
-                'spouse_name' => $request->spouse_name,
-                'children_count' => $request->number_of_children,
-                'zone' => $request->residential_zone,
-                'phone' => $formattedPhone,
-                'email' => $request->email,
+                'full_name' => $request->full_name ?? $user->full_name,
+                'gender' => $gender ?? $user->gender,
+                'birth_date' => $request->birth_date ?? $user->birth_date,
+                'birth_place' => $request->birth_place ?? $user->birth_place,
+                'marital_status' => $maritalStatus ?? $user->marital_status,
+                'spouse_name' => $request->spouse_name ?? $user->spouse_name,
+                'children_count' => $request->number_of_children ?? $user->children_count,
+                'zone' => $request->residential_zone ?? $user->zone,
+                'phone' => $formattedPhone ?: $user->phone,
+                'email' => $request->email ?? $user->email,
             ]);
         } else {
             $user = User::create([
                 'full_name' => $request->full_name,
-                'gender' => $request->gender,
+                'gender' => $gender,
                 'birth_date' => $request->birth_date,
                 'birth_place' => $request->birth_place,
-                'marital_status' => $request->marital_status,
+                'marital_status' => $maritalStatus,
                 'spouse_name' => $request->spouse_name,
                 'children_count' => $request->number_of_children,
                 'zone' => $request->residential_zone,
@@ -313,193 +244,198 @@ public function update(Request $request, Member $member)
 
         /*
         |--------------------------------------------------------------------------
-        | Update Member
+        | Update member (NO validation block)
         |--------------------------------------------------------------------------
         */
+
         $member->update([
             'user_id' => $user->id,
-            'full_name' => $request->full_name,
-            'gender' => $request->gender,
-            'birth_date' => $request->birth_date,
-            'birth_place' => $request->birth_place,
-            'marital_status' => $request->marital_status,
-            'spouse_name' => $request->spouse_name,
-            'number_of_children' => $request->number_of_children,
-            'residential_zone' => $request->residential_zone,
-            'phone_number' => $formattedPhone,
-            'email' => $request->email,
+            'full_name' => $request->full_name ?? $member->full_name,
+            'gender' => $gender ?? $member->gender,
+            'birth_date' => $request->birth_date ?? $member->birth_date,
+            'birth_place' => $request->birth_place ?? $member->birth_place,
+            'marital_status' => $maritalStatus ?? $member->marital_status,
+            'spouse_name' => $request->spouse_name ?? $member->spouse_name,
+            'number_of_children' => $request->number_of_children ?? $member->number_of_children,
+            'residential_zone' => $request->residential_zone ?? $member->residential_zone,
+            'phone_number' => $formattedPhone ?: $member->phone_number,
+            'email' => $request->email ?? $member->email,
 
             // Imani
-            'date_of_conversion' => $request->date_of_conversion,
-            'church_of_conversion' => $request->church_of_conversion,
-            'baptism_date' => $request->baptism_date,
-            'baptism_place' => $request->baptism_place,
-            'baptizer_name' => $request->baptizer_name,
-            'baptizer_title' => $request->baptizer_title,
-            'previous_church' => $request->previous_church,
-            'church_service' => $request->church_service,
-            'service_duration' => $request->service_duration,
+            'date_of_conversion' => $request->date_of_conversion ?? $member->date_of_conversion,
+            'church_of_conversion' => $request->church_of_conversion ?? $member->church_of_conversion,
+            'baptism_date' => $request->baptism_date ?? $member->baptism_date,
+            'baptism_place' => $request->baptism_place ?? $member->baptism_place,
+            'baptizer_name' => $request->baptizer_name ?? $member->baptizer_name,
+            'baptizer_title' => $request->baptizer_title ?? $member->baptizer_title,
+            'previous_church' => $request->previous_church ?? $member->previous_church,
+            'church_service' => $request->church_service ?? $member->church_service,
+            'service_duration' => $request->service_duration ?? $member->service_duration,
 
-            // Education & work
-            'education_level' => $request->education_level,
-            'profession' => $request->profession,
-            'occupation' => $request->occupation,
-            'work_place' => $request->work_place,
-            'work_contact' => $request->work_contact,
+            // Education
+            'education_level' => $request->education_level ?? $member->education_level,
+            'profession' => $request->profession ?? $member->profession,
+            'occupation' => $request->occupation ?? $member->occupation,
+            'work_place' => $request->work_place ?? $member->work_place,
+            'work_contact' => $request->work_contact ?? $member->work_contact,
 
             // Family
-            'lives_alone' => $request->lives_alone,
-            'lives_with' => $request->lives_with,
-            'family_role' => $request->family_role,
-            'live_with_who' => $request->live_with_who,
-            'next_of_kin' => $request->next_of_kin,
-            'next_of_kin_phone' => $request->next_of_kin_phone,
+            'lives_alone' => $livesAlone ?? $member->lives_alone,
+            'lives_with' => $request->lives_with ?? $member->lives_with,
+            'family_role' => $request->family_role ?? $member->family_role,
+            'live_with_who' => $request->live_with_who ?? $member->live_with_who,
+            'next_of_kin' => $request->next_of_kin ?? $member->next_of_kin,
+            'next_of_kin_phone' => $request->next_of_kin_phone ?? $member->next_of_kin_phone,
 
             // Membership
             'membership_number' => $request->membership_number ?? $member->membership_number,
-            'verified_by' => $request->verified_by,
-            'membership_start_date' => $request->membership_start_date,
+            'verified_by' => $request->verified_by ?? $member->verified_by,
+            'membership_start_date' => $request->membership_start_date ?? $member->membership_start_date,
             'membership_status' => $request->membership_status ?? $member->membership_status,
-            'deactivation_reason' => $request->deactivation_reason,
-            'is_authorized' => $request->is_authorized ?? $member->is_authorized,
+            'deactivation_reason' => $request->deactivation_reason ?? $member->deactivation_reason,
+            'is_authorized' => $isAuthorized ?? $member->is_authorized,
         ]);
 
         DB::commit();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Member and user updated successfully.',
+            'message' => 'Mabadiliko yamehifadhiwa!',
             'member' => $member->fresh()->load('user'),
         ]);
 
     } catch (\Throwable $e) {
         DB::rollBack();
 
-        Log::error('Member update failed', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
-
         return response()->json([
             'status' => 'error',
-            'message' => 'Server error.',
+            'message' => $e->getMessage(),
         ], 500);
     }
 }
-
-
-
-
-
     /**
      * Authorize an existing user as a member
      */
-    public function authorizeUser(Request $request)
-    {
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
+public function authorizeUser(Request $request)
+{
+    $request->validate([
+        'user_id' => 'required|exists:users,id',
+    ]);
+
+    $user = User::find($request->user_id);
+
+    if ($user->member) {
+
+        $user->role = 'mshirika';
+        $user->save();
+
+        $member = $user->member;
+
+        //  Update status to active
+        $member->update([
+            'membership_status' => 'active',
+            'membership_number' => $member->membership_number ?? $this->generateMembershipNumber(),
         ]);
 
-        $user = User::find($request->user_id);
+    } else {
 
-        if ($user->member) {
-            $user->role = 'mshirika';
-            $user->save();
+        $membershipNumber = $this->generateMembershipNumber();
 
-            if (!$user->member->membership_number) {
-                $user->member->update([
-                    'membership_number' => $this->generateMembershipNumber(),
-                ]);
-            }
-
-            $member = $user->member;
-        } else {
-            $membershipNumber = $this->generateMembershipNumber();
-
-            $member = Member::create([
-                'user_id' => $user->id,
-                'full_name' => $user->full_name,
-                'gender' => $user->gender,
-                'birth_date' => $user->birth_date,
-                'birth_place' => $user->birth_place,
-                'marital_status' => $user->marital_status,
-                'spouse_name' => $user->spouse_name,
-                'number_of_children' => $user->children_count,
-                'residential_zone' => $user->zone,
-                'phone_number' => $user->phone,
-                'email' => $user->email,
-                'membership_status' => 'active',
-                'membership_number' => $membershipNumber,
-            ]);
-
-            $user->role = 'mshirika';
-            $user->save();
-        }
-
-        $this->notifyMember($member);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'User authorized as member successfully, notifications sent.',
-            'member' => $member,
-            'user' => $user,
+        $member = Member::create([
+            'user_id' => $user->id,
+            'full_name' => $user->full_name,
+            'gender' => $user->gender,
+            'birth_date' => $user->birth_date,
+            'birth_place' => $user->birth_place,
+            'marital_status' => $user->marital_status,
+            'spouse_name' => $user->spouse_name,
+            'number_of_children' => $user->children_count,
+            'residential_zone' => $user->zone,
+            'phone_number' => $user->phone,
+            'email' => $user->email,
+            'membership_status' => 'active',
+            'membership_number' => $membershipNumber,
         ]);
+
+        $user->role = 'mshirika';
+        $user->save();
     }
+
+    $this->notifyMember($member);
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'User authorized as member successfully, notifications sent.',
+        'member' => $member,
+        'user' => $user,
+    ]);
+}
 
     /**
      * Activate member
      */
-    public function activate(Member $member)
-    {
-        if ($member->membership_status === 'active') {
-            return response()->json([
-                'status' => 'info',
-                'message' => 'Member already active.',
-            ]);
-        }
-
-        $member->update([
-            'membership_status' => 'active',
-            'deactivation_reason' => null,
-        ]);
-
-        $this->notifyMember($member);
-
+   public function activate(Member $member)
+{
+    if ($member->membership_status === 'pending') {
         return response()->json([
-            'status' => 'success',
-            'message' => 'Member activated and notifications sent.',
+            'status' => 'info',
+            'message' => 'Member already pending approval.',
         ]);
     }
 
+    $member->update([
+        'membership_status' => 'pending', // set to pending instead of active
+        'deactivation_reason' => null,
+        // Do NOT assign membership number here
+    ]);
+
+    $this->notifyMember($member);
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Member status set to pending. Notifications sent.',
+    ]);
+}
     /**
      * Deactivate member
      */
-    public function deactivate(Request $request, Member $member)
-    {
-       $reasons = [
-    'Amehama' => 'left',
-    'Ametegwa ushirika' => 'detained',
-    'Amefariki' => 'deceased',
-    'Amepotea' => 'lost',
-    'Amejisajiri kimakosa' => 'lost',
-];
+   public function deactivate(Request $request, Member $member)
+{
+    $reasons = [
+        'Amehama' => 'left',
+        'Ametegwa ushirika' => 'detained',
+        'Amefariki' => 'deceased',
+        'Amepotea' => 'lost',
+        'Amejisajiri kimakosa' => 'lost',
+    ];
 
-$request->validate([
-    'reason' => ['required', Rule::in(array_keys($reasons))],
-]);
+    $request->validate([
+        'reason' => ['required', Rule::in(array_keys($reasons))],
+    ]);
 
-$status = $reasons[$request->reason];
+    $status = $reasons[$request->reason];
 
-        $member->update([
-            'membership_status' => $status,
-            'deactivation_reason' => $request->reason,
-        ]);
+    $member->update([
+        'membership_status' => $status,
+        'deactivation_reason' => $request->reason,
+    ]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Member deactivated successfully.',
-        ]);
-    }
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Member deactivated successfully.',
+        'member' => $member,
+    ]);
+}
+
+public function stats()
+{
+    return response()->json([
+        'status' => 'success',
+        'total_members' => Member::where('membership_status', 'active')->count(),
+    ]);
+}
+
+
 
     /**
      * List deleted members
@@ -627,16 +563,16 @@ $status = $reasons[$request->reason];
      */
  private function notifyMember(Member $member)
 {
-    // Refresh member to get latest data
+    // Refresh member
     $member = $member->fresh();
 
-    // If membership number is missing, generate and save it
-    if (!$member->membership_number) {
+    // Only generate membership number if member is active/approved
+    if ($member->membership_status === 'active' && !$member->membership_number) {
         $member->membership_number = $this->generateMembershipNumber();
         $member->save();
     }
 
-    $membershipNumber = $member->membership_number;
+    $membershipNumber = $member->membership_number ?? '—';
     $fullName = $member->full_name;
 
     // Send SMS
@@ -645,7 +581,6 @@ $status = $reasons[$request->reason];
             $text = "Habari {$fullName}, usajili wako FPCT Kurasini umekamilika. "
                   . "Namba yako ya ushirika ni: {$membershipNumber}. Karibu FPCT Kurasini.";
 
-              
             app(SMSService::class)->sendSMS($member->phone_number, $text);
         } catch (\Throwable $e) {
             Log::error("SMS sending failed: " . $e->getMessage());

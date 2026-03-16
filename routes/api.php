@@ -41,6 +41,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/mtumiaji', fn(Request $request) => $request->user());
     Route::post('/user/update-profile', [AuthController::class, 'updateProfile']);
     Route::get('/users', [AuthController::class, 'allUsers']);
+    // Reject a user (mark as rejected instead of deleting)
+   Route::post('/users/{id}/reject', [AuthController::class, 'rejectUser']);
 
     // Members
     Route::apiResource('members', MembersController::class);
@@ -49,6 +51,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/members/{member}/activate', [MembersController::class, 'activate']);
     Route::delete('/members/{id}/delete-both', [MembersController::class, 'deleteBoth']);
     Route::get('/members/by-user/{user}', [MembersController::class, 'byUser']);
+    Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/members/stats', [MembersController::class, 'stats']);
+});
+
+
 
 
     // Guests
@@ -77,9 +84,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user-role-assignments', [UserRoleController::class, 'index']);
     Route::put('/leadership-roles/{id}', [LeadershipRoleController::class, 'update']);
     Route::delete('/leadership-roles/{id}', [LeadershipRoleController::class, 'destroy']);
-      Route::put('/{id}/roles', [LeaderController::class, 'updateRole']); 
+    Route::put('/{id}/roles', [LeaderController::class, 'updateRole']); 
       // Update all leader details + roles
-        Route::put('/leaders/{id}', [LeaderController::class, 'update']);
+    Route::put('/leaders/{id}', [LeaderController::class, 'update']);
 
         // Update only roles
         Route::put('/leaders/{id}/roles', [LeaderController::class, 'updateRole']);
@@ -106,7 +113,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/send-sms', [SMSController::class, 'send']);
     Route::get('/sms/logs', [SMSController::class, 'logs']);
 
-    // 🖼️ Gallery upload/delete
+    //  Gallery upload/delete
     Route::post('/gallery', [GalleryController::class, 'store']);
     Route::delete('/gallery/{id}', [GalleryController::class, 'destroy']);
 
@@ -127,6 +134,13 @@ Route::get('/test-env', function () {
         'api_key' => config('services.beem.api_key'),
         'secret' => config('services.beem.secret'),
         'sender' => config('services.beem.sender'),
+    ]);
+});
+
+Route::get('/server-ip', function () {
+    return response()->json([
+        'server_ip' => request()->server('SERVER_ADDR'),
+        'client_ip' => request()->ip(),
     ]);
 });
 

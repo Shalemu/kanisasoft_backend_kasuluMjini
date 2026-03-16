@@ -8,32 +8,70 @@ use Illuminate\Support\Facades\Log;
 class SMSService
 {
     /**
-     * Send SMS via Mshastra (or your chosen provider)
+     * Send SMS via MSHASTRA JSON API
      *
-     * @param string $phone
-     * @param string $message
-     * @return bool
+     * @param string 
+     * @param string 
+     * @return array  
      */
-    public function sendSMS(string $phone, string $message): bool
+    public function sendSMS(string $phone, string $message): array
     {
-        try {
-            $response = Http::post(config('services.mshastra.json_url'), [
+        $payload = [
+            [
                 'user' => config('services.mshastra.user'),
-                'password' => config('services.mshastra.password'),
+                'pwd' => config('services.mshastra.password'),
+                'number' => $phone,
+                'msg' => $message,
                 'sender' => config('services.mshastra.sender'),
-                'mobile' => $phone,
-                'message' => $message,
-            ]);
+                'language' => 'English',
+            ]
+        ];
 
-            if ($response->successful()) {
-                return true;
+        try {
+            $response = Http::post(config('services.mshastra.json_url'), $payload);
+            $body = $response->body();
+
+            if (!$response->successful()) {
+                Log::error('SMS request failed: ' . $body);
+                $errorType = stripos($body, 'Invalid Password') !== false ? 'Invalid Password' : 'Other';
+                return [
+                    'status' => false,
+                    'response' => $body,
+                    'error_type' => $errorType,
+                ];
             }
 
-            Log::error('SMS failed: ' . $response->body());
-            return false;
+            // Check for failure keywords in body
+            if (stripos($body, 'Invalid Password') !== false) {
+                return [
+                    'status' => false,
+                    'response' => $body,
+                    'error_type' => 'Invalid Password',
+                ];
+            }
+
+            if (stripos($body, 'success') !== false || stripos($body, 'Sent') !== false) {
+                return [
+                    'status' => true,
+                    'response' => $body,
+                    'error_type' => null,
+                ];
+            }
+
+            // If other failure
+            return [
+                'status' => false,
+                'response' => $body,
+                'error_type' => 'Other',
+            ];
+
         } catch (\Throwable $e) {
             Log::error('SMS sending error: ' . $e->getMessage());
-            return false;
+            return [
+                'status' => false,
+                'response' => $e->getMessage(),
+                'error_type' => 'Exception',
+            ];
         }
     }
 }

@@ -1,14 +1,17 @@
 <?php
 
 namespace App\Exceptions;
+
+use Throwable;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Support\Facades\Log;
-use Throwable;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class Handler extends ExceptionHandler
 {
     /**
-     * The list of the inputs that are never flashed to the session on validation exceptions.
+     * Inputs that are never flashed to session.
      *
      * @var array<int, string>
      */
@@ -19,48 +22,54 @@ class Handler extends ExceptionHandler
     ];
 
     /**
-     * Register the exception handling callbacks for the application.
+     * Register exception handling.
      */
     public function register(): void
     {
         $this->reportable(function (Throwable $e) {
-            if (app()->environment('production')) {
-                Log::error('Server Error: ' . $e->getMessage(), [
-                    'exception' => $e,
-                ]);
-            }
-            Log::error('[' . $e->getCode() . '] ' . $e->getMessage() . ' on line ' . @$e->getLine() . ' of file ' . @$e->getFile());
-            return false; // Exclude the long unnecessary error stack ...
+            Log::error('[' . $e->getCode() . '] ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
         });
     }
 
+    /**
+     * Handle unauthenticated users (Sanctum).
+     */
+    protected function unauthenticated($request, AuthenticationException $exception)
+    {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.'
+            ], 401);
+        }
+
+        return redirect()->guest('/');
+    }
+
+    /**
+     * Render exceptions.
+     */
     public function render($request, Throwable $e)
     {
-        if (config('app.debug')) {
-            Log::error('[' . $e->getCode() . '] ' . $e->getMessage() . ' on line ' . @$e->getLine() . ' of file ' . @$e->getFile());
+        // If this is an API request → always return JSON
+        if ($request->expectsJson()) {
+
+            $statusCode = 500;
+
+            if ($e instanceof HttpExceptionInterface) {
+                $statusCode = $e->getStatusCode();
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Server Error'
+            ], $statusCode);
         }
 
-        Log::error(get_class($e));
-        if ($this->isHttpException($e)) {
-            Log::error('Caught HttpException: ' . $e->getStatusCode());
-
-            if ($e->getStatusCode() === 401) {
-                return response()->view('errors.401', [], 401);
-            }
-
-            if ($e->getStatusCode() === 404) {
-                return response()->view('errors.404', [], 404);
-            }
-
-            if ($e->getStatusCode() === 503) {
-                return response()->view('errors.503', [], 503);
-            }
-
-            if ($e->getStatusCode() === 500) {
-                return response()->view('errors.500', [], 500);
-            }
-        }
-
+        // Default web behavior
         return parent::render($request, $e);
     }
 }

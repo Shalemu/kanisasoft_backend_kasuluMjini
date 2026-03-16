@@ -23,6 +23,7 @@ class Member extends Model
         'number_of_children',
         'residential_zone',
         'phone_number',
+         'whatsapp_number',
         'email',
 
         // Imani

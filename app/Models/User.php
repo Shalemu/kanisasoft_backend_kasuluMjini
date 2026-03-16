@@ -25,6 +25,7 @@ class User extends Authenticatable
         'children_count',
         'zone',
         'phone',
+        'whatsapp_number',
         'email',
         'password',
         'role', // SYSTEM role only (admin | kiongozi | mshirika)
@@ -118,4 +119,19 @@ class User extends Authenticatable
     {
         $this->notify(new ResetPasswordNotification($token));
     }
+
+
+    public function setRoleAttribute($value)
+{
+    if (
+        isset($this->attributes['role']) &&
+        $this->attributes['role'] === 'admin' &&
+        $value !== 'admin'
+    ) {
+        return;
+    }
+
+    $this->attributes['role'] = $value;
+}
+
 }
