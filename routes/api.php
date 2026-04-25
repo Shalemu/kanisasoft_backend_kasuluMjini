@@ -18,10 +18,10 @@ use App\Http\Controllers\Api\{
     GalleryController,
     UserSettingsController,
     UserRoleController,
-    ServiceEventController,
 };
+use App\Models\Attendance;
 
-// 🌐 Public routes
+//  Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/change-password', [AuthController::class, 'changePassword'])->middleware('auth:sanctum');
@@ -31,15 +31,16 @@ Route::middleware('auth:sanctum')->post('/users/assign-roles', [UserRoleControll
 
 
 
-// 🖼️ Public access to gallery
+// Public access to gallery
 Route::get('/gallery', [GalleryController::class, 'index']);
 
-// 🔐 Protected routes
+//  Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/mtumiaji/profile', [AuthController::class, 'me']);
-    Route::get('/mtumiaji', fn(Request $request) => $request->user());
+    // Route::get('/mtumiaji', fn(Request $request) => $request->user());
+    Route::get('/mtumiaji', [AuthController::class, 'me']);
     Route::post('/user/update-profile', [AuthController::class, 'updateProfile']);
     Route::get('/users', [AuthController::class, 'allUsers']);
     // Reject a user (mark as rejected instead of deleting)
@@ -54,6 +55,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/members/by-user/{user}', [MembersController::class, 'byUser']);
     Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/members/stats', [MembersController::class, 'stats']);
+});
+
+// Attendance
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/attendance', [AttendanceController::class, 'index']);
+    Route::post('/attendance', [AttendanceController::class, 'store']);
+    Route::get('/attendance/{serviceId}', [AttendanceController::class, 'show']);
+});
+
+//services
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/services', [\App\Http\Controllers\Api\ServiceController::class, 'store']);
 });
 
 
@@ -93,10 +106,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/leaders/{id}/roles', [LeaderController::class, 'updateRole']);
 
     // Events
+    Route::get('/events/past', [EventController::class, 'pastEvents']);
     Route::apiResource('events', EventController::class);
 
     // Service Events
     Route::apiResource('service-events', ServiceEventController::class);
+
+
+
+Route::middleware('auth:sanctum')->prefix('service-events')->group(function () {
+    Route::get('/', [ServiceEventController::class, 'index']);
+    Route::get('/{id}', [ServiceEventController::class, 'show']);
+    Route::post('/', [ServiceEventController::class, 'store']);
+    Route::put('/{id}', [ServiceEventController::class, 'update']);
+    Route::delete('/{id}', [ServiceEventController::class, 'destroy']);
+});
+
+  
 
     // Contributions
     Route::get('/contributions', [ContributionController::class, 'index']);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class EventController extends Controller
 {
@@ -14,6 +15,9 @@ class EventController extends Controller
     public function index(Request $request)
     {
         $query = Event::query();
+
+        // Show only today and future events
+        $query->whereDate('date', '>=', Carbon::today());
 
         if ($request->has('search')) {
             $query->where('title', 'like', '%' . $request->search . '%');
@@ -25,10 +29,30 @@ class EventController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'events' => $query->orderBy('date')->get(),
+            'events' => $query->orderBy('date', 'asc')->get(),
         ]);
     }
 
+    public function pastEvents(Request $request)
+{
+    $query = Event::query();
+
+    // Show only past events
+    $query->whereDate('date', '<', Carbon::today());
+
+    if ($request->has('search')) {
+        $query->where('title', 'like', '%' . $request->search . '%');
+    }
+
+    if ($request->has('category') && $request->category !== 'All') {
+        $query->where('category', $request->category);
+    }
+
+    return response()->json([
+        'status' => 'success',
+        'events' => $query->orderBy('date', 'desc')->get(),
+    ]);
+}
     /**
      * Store a newly created event in storage.
      */

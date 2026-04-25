@@ -102,6 +102,7 @@ public function store(Request $request)
     $validator = Validator::make($request->all(), [
         'name' => 'required|string|max:255',
         'leader_membership_number' => 'nullable|string',
+        'whatsapp_link' => 'nullable|url',
     ]);
 
     if ($validator->fails()) {
@@ -140,6 +141,7 @@ public function store(Request $request)
     $group = Group::create([
         'name' => $request->name,
         'leader_id' => $leaderId,
+        'whatsapp_link' => $request->whatsapp_link,
     ]);
 
     return response()->json([
@@ -163,9 +165,11 @@ public function update(Request $request, $id)
         ], 404);
     }
 
+    // Validate input
     $validator = Validator::make($request->all(), [
         'name' => 'sometimes|required|string|max:255',
         'leader_membership_number' => 'nullable|string',
+        'whatsapp_link' => 'nullable|url', // ✅ WhatsApp link is nullable
     ]);
 
     if ($validator->fails()) {
@@ -175,7 +179,7 @@ public function update(Request $request, $id)
         ], 422);
     }
 
-    // Check if name is unique (ignore current group)
+    // Update name if provided
     if ($request->filled('name')) {
         $exists = Group::where('name', $request->name)
             ->where('id', '!=', $group->id)
@@ -191,7 +195,7 @@ public function update(Request $request, $id)
         $group->name = $request->name;
     }
 
-    // Verify leader membership number
+    // Update leader if provided
     if ($request->has('leader_membership_number')) {
         if (!$request->leader_membership_number) {
             $group->leader_id = null;
@@ -208,6 +212,11 @@ public function update(Request $request, $id)
 
             $group->leader_id = $member->id;
         }
+    }
+
+    //  Update or set WhatsApp link
+    if ($request->has('whatsapp_link')) {
+        $group->whatsapp_link = $request->whatsapp_link; // can be null if empty
     }
 
     $group->save();
@@ -263,10 +272,10 @@ public function addMember(Request $request, Group $group)
 
     $user = $request->user();
 
-    // ✅ ADMIN CAN ADD TO ANY GROUP
+
     if (!$user->hasSystemRole('admin')) {
 
-        // ❌ must be a member AND leader of this group
+       
         if (!$user->member || $user->member->id !== $group->leader_id) {
             return response()->json([
                 'status' => 'error',
@@ -372,6 +381,47 @@ public function addMember(Request $request, Group $group)
         ]);
     }
 
+  public function members($id)
+{
+    // Load group with members and leader
+    $group = Group::with(['members.user', 'leader'])->find($id);
+
+    if (!$group) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Kundi halikupatikana.',
+        ], 404);
+    }
+
+    // Prepare members data
+    $members = $group->members->map(function ($member) {
+        return [
+            'id' => $member->id,
+            'full_name' => $member->full_name,
+            'email' => $member->email,
+            'role' => $member->user?->role ?? null,
+            'membership_number' => $member->membership_number ?? null,
+            'photo_url' => $member->photo_url ?? null,
+        ];
+    });
+
+    // Leader info (separate object)
+    $leader = $group->leader ? [
+        'id' => $group->leader->id,
+        'full_name' => $group->leader->full_name,
+        'email' => $group->leader->email ?? null,
+        'role' => $group->leader->user?->role ?? null,
+        'membership_number' => $group->leader->membership_number ?? null,
+        'photo_url' => $group->leader->photo_url ?? null,
+    ] : null;
+
+    return response()->json([
+        'status' => 'success',
+        'members' => $members,
+        'leader_id' => $group->leader_id,
+        'leader' => $leader,
+    ]);
+}
     /**
      * Search members in group
      */

@@ -584,30 +584,46 @@ public function stats()
      * Assign leadership role
      */
     public function assignLeadershipRole(Request $request)
-    {
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'role_title' => 'required|string|exists:leadership_roles,title',
-        ]);
+{
+    $request->validate([
+        'user_id' => 'required|exists:users,id',
+        'role_title' => 'required|string|exists:leadership_roles,title',
+    ]);
 
-        $user = User::find($request->user_id);
-        $role = LeadershipRole::where('title', $request->role_title)->first();
+    $user = User::findOrFail($request->user_id);
+    $role = LeadershipRole::where('title', $request->role_title)->firstOrFail();
 
-        if (!$role) {
-            return response()->json(['status' => 'error', 'message' => 'Role not found.'], 404);
-        }
+    /*
+    |--------------------------------------------------------------------------
+    | Map leadership title to system login role
+    |--------------------------------------------------------------------------
+    */
+    $systemRole = match (strtolower(trim($role->title))) {
+        'mchungaji',
+        'mchungaji kiongozi' => 'mchungaji',
 
-        $user->role_id = $role->id;
-        $user->role = $role->title;
-        $user->save();
+        'katibu',
+        'katibu msaidizi' => 'katibu',
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'User role updated successfully.',
-            'user' => $user,
-        ]);
-    }
+        'mhasibu',
+        'mweka hazina' => 'mhasibu',
 
+        default => 'kiongozi',
+    };
+
+    $user->update([
+        'role_id' => $role->id,
+        'role' => $systemRole,
+    ]);
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'User leadership role assigned successfully.',
+        'assigned_title' => $role->title,
+        'system_role' => $systemRole,
+        'user' => $user,
+    ]);
+}
     /**
      * Generate unique membership number
      */

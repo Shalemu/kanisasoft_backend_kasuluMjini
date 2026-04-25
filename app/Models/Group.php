@@ -14,6 +14,7 @@ class Group extends Model
     protected $fillable = [
         'name',
         'leader_id', 
+         'whatsapp_link', 
     ];
 
     /**
