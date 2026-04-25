@@ -19,14 +19,22 @@ class User extends Authenticatable
         'gender',
         'birth_date',
         'birth_place',
+        'birth_region',
         'birth_district',
+        'birth_ward',
+        'birth_street',
         'marital_status',
+        'marriage_type',
         'spouse_name',
         'children_count',
         'zone',
+        'residential_ward',
+        'residential_street',
         'phone',
         'whatsapp_number',
         'email',
+        'has_disability',
+        'disability_description',
         'password',
         'role', // SYSTEM role only (admin | kiongozi | mshirika)
     ];
@@ -40,6 +48,7 @@ class User extends Authenticatable
         'birth_date' => 'date',
         'children_count' => 'integer',
         'email_verified_at' => 'datetime',
+        'has_disability' => 'boolean',
     ];
 
     protected function serializeDate(DateTimeInterface $date)

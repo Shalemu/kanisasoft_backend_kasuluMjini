@@ -63,43 +63,61 @@ class AuthController extends Controller
             'phone' => $this->formatTanzaniaPhone($request->phone),
         ]);
 
+        $zoneValues = ['MURUBOMBO','MURUSI B','KIGANAMO','MURUSI A','KUMUNYIKA B','KAGUNGA C','KUMUNYIKA A','KAGANGA B','MURUBONA A','KAGUNGA A'];
+
         $request->validate([
             'full_name' => 'required|string|max:255',
             'gender' => 'required|in:M,F',
             'birth_date' => 'nullable|date',
             'birth_place' => 'nullable|string|max:255',
+            'birth_region' => 'nullable|string|max:255',
+            'birth_ward' => 'nullable|string|max:255',
+            'birth_street' => 'nullable|string|max:255',
             'marital_status' => 'nullable|in:Ameoa,Ameolewa,Hajaoa,Hajaolewa,Mjane,Mgane',
+            'marriage_type' => 'nullable|in:Kikristo,Kiserikali,Kienyeji',
             'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ameoa,Ameolewa',
             'children_count' => 'nullable|integer|min:0',
-            'zone' => 'nullable|string|max:255',
-           'phone' => [
-            'required',
-            'regex:/^255[0-9]{9}$/',
-            'unique:users,phone'
-        ],
-
-           'whatsapp_number' => [
-            'nullable',
-            'regex:/^(0[0-9]{9}|255[0-9]{9})$/'
-        ],
+            'zone' => ['nullable', Rule::in($zoneValues)],
+            'residential_ward' => 'nullable|string|max:255',
+            'residential_street' => 'nullable|string|max:255',
+            'phone' => [
+                'required',
+                'regex:/^255[0-9]{9}$/',
+                'unique:users,phone'
+            ],
+            'whatsapp_number' => [
+                'nullable',
+                'regex:/^(0[0-9]{9}|255[0-9]{9})$/'
+            ],
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:6|confirmed',
 
+            // Disability
+            'has_disability' => 'nullable|boolean',
+            'disability_description' => 'nullable|string|max:500|required_if:has_disability,true,1',
+
             // Imani
             'date_of_conversion' => 'nullable|date',
+            'conversion_year' => 'nullable|integer|min:1900|max:2100',
+            'conversion_month' => 'nullable|integer|min:1|max:12',
+            'conversion_day' => 'nullable|integer|min:1|max:31',
             'church_of_conversion' => 'nullable|string',
             'baptism_date' => 'nullable|date',
+            'baptism_year' => 'nullable|integer|min:1900|max:2100',
+            'baptism_month' => 'nullable|integer|min:1|max:12',
+            'baptism_day' => 'nullable|integer|min:1|max:31',
             'baptism_place' => 'nullable|string',
             'baptizer_name' => 'nullable|string',
             'baptizer_title' => 'nullable|string',
             'previous_church' => 'nullable|string',
             'church_service' => 'nullable|string',
             'service_duration' => 'nullable|string',
+            'participates_communion' => 'nullable|boolean',
 
             // Elimu
             'education_level' => 'nullable|string',
             'profession' => 'nullable|string',
-            'occupation' => 'nullable|string',
+            'occupation' => 'required|string',
             'work_place' => 'nullable|string',
             'work_contact' => 'nullable|string',
 
@@ -114,13 +132,21 @@ class AuthController extends Controller
                 'gender' => $request->gender,
                 'birth_date' => $request->birth_date,
                 'birth_place' => $request->birth_place,
+                'birth_region' => $request->birth_region,
+                'birth_ward' => $request->birth_ward,
+                'birth_street' => $request->birth_street,
                 'marital_status' => $request->marital_status,
+                'marriage_type' => $request->marriage_type,
                 'spouse_name' => $request->spouse_name,
                 'children_count' => $request->children_count,
                 'zone' => $request->zone,
+                'residential_ward' => $request->residential_ward,
+                'residential_street' => $request->residential_street,
                 'phone' => $request->phone,
-                'whatsapp_number' => $request->whatsapp_number, 
+                'whatsapp_number' => $request->whatsapp_number,
                 'email' => $request->email,
+                'has_disability' => $request->has_disability ?? false,
+                'disability_description' => $request->disability_description,
                 'password' => Hash::make($request->password),
                 'role' => null,
             ]);
@@ -131,22 +157,37 @@ class AuthController extends Controller
                 'gender' => $request->gender,
                 'birth_date' => $request->birth_date,
                 'birth_place' => $request->birth_place,
+                'birth_region' => $request->birth_region,
+                'birth_ward' => $request->birth_ward,
+                'birth_street' => $request->birth_street,
                 'marital_status' => $request->marital_status,
+                'marriage_type' => $request->marriage_type,
                 'spouse_name' => $request->spouse_name,
                 'number_of_children' => $request->children_count,
                 'residential_zone' => $request->zone,
+                'residential_ward' => $request->residential_ward,
+                'residential_street' => $request->residential_street,
                 'phone_number' => $request->phone,
                 'email' => $request->email,
+                'has_disability' => $request->has_disability ?? false,
+                'disability_description' => $request->disability_description,
 
                 'date_of_conversion' => $request->date_of_conversion,
+                'conversion_year' => $request->conversion_year,
+                'conversion_month' => $request->conversion_month,
+                'conversion_day' => $request->conversion_day,
                 'church_of_conversion' => $request->church_of_conversion,
                 'baptism_date' => $request->baptism_date,
+                'baptism_year' => $request->baptism_year,
+                'baptism_month' => $request->baptism_month,
+                'baptism_day' => $request->baptism_day,
                 'baptism_place' => $request->baptism_place,
                 'baptizer_name' => $request->baptizer_name,
                 'baptizer_title' => $request->baptizer_title,
                 'previous_church' => $request->previous_church,
                 'church_service' => $request->church_service,
                 'service_duration' => $request->service_duration,
+                'participates_communion' => $request->participates_communion,
 
                 'education_level' => $request->education_level,
                 'profession' => $request->profession,
@@ -212,33 +253,52 @@ public function updateProfile(Request $request)
     ]);
 
     // Validation rules
+    $zoneValues = ['MURUBOMBO','MURUSI B','KIGANAMO','MURUSI A','KUMUNYIKA B','KAGUNGA C','KUMUNYIKA A','KAGANGA B','MURUBONA A','KAGUNGA A'];
+
     $request->validate([
         'full_name' => 'required|string|max:255',
         'gender' => 'required|in:M,F',
         'birth_date' => 'nullable|date',
         'birth_place' => 'nullable|string|max:255',
+        'birth_region' => 'nullable|string|max:255',
+        'birth_ward' => 'nullable|string|max:255',
+        'birth_street' => 'nullable|string|max:255',
         'marital_status' => ['nullable', Rule::in(['Ameoa','Ameolewa','Hajaoa','Hajaolewa','Mjane','Mgane'])],
+        'marriage_type' => 'nullable|in:Kikristo,Kiserikali,Kienyeji',
         'spouse_name' => 'sometimes|required_if:marital_status,Ameoa,Ameolewa|string|max:255',
         'children_count' => 'nullable|integer|min:0',
-        'zone' => 'nullable|string|max:255',
+        'zone' => ['nullable', Rule::in($zoneValues)],
+        'residential_ward' => 'nullable|string|max:255',
+        'residential_street' => 'nullable|string|max:255',
         'phone' => ['required','string','max:20','unique:users,phone,' . $user->id],
         'email' => ['required','email','max:255','unique:users,email,' . $user->id],
 
+        // Disability
+        'has_disability' => 'nullable|boolean',
+        'disability_description' => 'nullable|string|max:500|required_if:has_disability,true,1',
+
         // Imani
         'date_of_conversion' => 'nullable|date',
+        'conversion_year' => 'nullable|integer|min:1900|max:2100',
+        'conversion_month' => 'nullable|integer|min:1|max:12',
+        'conversion_day' => 'nullable|integer|min:1|max:31',
         'church_of_conversion' => 'nullable|string',
         'baptism_date' => 'nullable|date',
+        'baptism_year' => 'nullable|integer|min:1900|max:2100',
+        'baptism_month' => 'nullable|integer|min:1|max:12',
+        'baptism_day' => 'nullable|integer|min:1|max:31',
         'baptism_place' => 'nullable|string',
         'baptizer_name' => 'nullable|string',
         'baptizer_title' => 'nullable|string',
         'previous_church' => 'nullable|string',
         'church_service' => 'nullable|string',
         'service_duration' => 'nullable|string',
+        'participates_communion' => 'nullable|boolean',
 
         // Elimu
         'education_level' => 'nullable|string',
         'profession' => 'nullable|string',
-        'occupation' => 'nullable|string',
+        'occupation' => 'required|string',
         'work_place' => 'nullable|string',
         'work_contact' => 'nullable|string',
 
@@ -256,12 +316,20 @@ public function updateProfile(Request $request)
             'gender' => $request->gender,
             'birth_date' => $request->birth_date,
             'birth_place' => $request->birth_place,
+            'birth_region' => $request->birth_region,
+            'birth_ward' => $request->birth_ward,
+            'birth_street' => $request->birth_street,
             'marital_status' => $request->marital_status,
+            'marriage_type' => $request->marriage_type,
             'spouse_name' => $request->spouse_name,
             'children_count' => $request->children_count,
             'zone' => $request->zone,
+            'residential_ward' => $request->residential_ward,
+            'residential_street' => $request->residential_street,
             'phone' => $request->phone,
             'email' => $request->email,
+            'has_disability' => $request->has_disability ?? false,
+            'disability_description' => $request->disability_description,
         ]);
 
         // Update or create Member
@@ -272,22 +340,37 @@ public function updateProfile(Request $request)
                 'gender' => $request->gender,
                 'birth_date' => $request->birth_date,
                 'birth_place' => $request->birth_place,
+                'birth_region' => $request->birth_region,
+                'birth_ward' => $request->birth_ward,
+                'birth_street' => $request->birth_street,
                 'marital_status' => $request->marital_status,
+                'marriage_type' => $request->marriage_type,
                 'spouse_name' => $request->spouse_name,
                 'number_of_children' => $request->children_count,
                 'residential_zone' => $request->zone,
+                'residential_ward' => $request->residential_ward,
+                'residential_street' => $request->residential_street,
                 'phone_number' => $request->phone,
                 'email' => $request->email,
+                'has_disability' => $request->has_disability ?? false,
+                'disability_description' => $request->disability_description,
 
                 'date_of_conversion' => $request->date_of_conversion,
+                'conversion_year' => $request->conversion_year,
+                'conversion_month' => $request->conversion_month,
+                'conversion_day' => $request->conversion_day,
                 'church_of_conversion' => $request->church_of_conversion,
                 'baptism_date' => $request->baptism_date,
+                'baptism_year' => $request->baptism_year,
+                'baptism_month' => $request->baptism_month,
+                'baptism_day' => $request->baptism_day,
                 'baptism_place' => $request->baptism_place,
                 'baptizer_name' => $request->baptizer_name,
                 'baptizer_title' => $request->baptizer_title,
                 'previous_church' => $request->previous_church,
                 'church_service' => $request->church_service,
                 'service_duration' => $request->service_duration,
+                'participates_communion' => $request->participates_communion,
 
                 'education_level' => $request->education_level,
                 'profession' => $request->profession,
@@ -323,17 +406,20 @@ public function updateProfile(Request $request)
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'login' => 'required|string',
             'password' => 'required|string',
         ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
+
+        if (!Auth::attempt([$loginField => $request->login, 'password' => $request->password])) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Invalid credentials',
             ], 401);
         }
 
+        /** @var \App\Models\User $user */
         $user = Auth::user();
 
         if (!$user->role) {

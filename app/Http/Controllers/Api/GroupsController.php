@@ -19,15 +19,54 @@ class GroupsController extends Controller
     }
 
     /**
-     * List all groups
+     * List all groups with members count
      */
     public function index()
     {
-        $groups = Group::with(['leader', 'members'])->get();
+        $groups = Group::with(['leader'])
+            ->withCount('members')
+            ->get();
 
         return response()->json([
             'status' => 'success',
             'groups' => $groups,
+        ]);
+    }
+
+    /**
+     * Get members of a group with their contact info (phone & email)
+     */
+    public function members($id)
+    {
+        $group = Group::find($id);
+
+        if (!$group) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Group not found',
+            ], 404);
+        }
+
+        $members = $group->members()->get()->map(function ($member) {
+            return [
+                'id' => $member->id,
+                'full_name' => $member->full_name,
+                'membership_number' => $member->membership_number,
+                'phone_number' => $member->phone_number,
+                'email' => $member->email,
+                'gender' => $member->gender,
+                'residential_zone' => $member->residential_zone,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'group' => [
+                'id' => $group->id,
+                'name' => $group->name,
+                'members_count' => $members->count(),
+            ],
+            'members' => $members,
         ]);
     }
 

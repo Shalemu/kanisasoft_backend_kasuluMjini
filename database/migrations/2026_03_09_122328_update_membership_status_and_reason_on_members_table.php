@@ -19,7 +19,11 @@ return new class extends Migration
                   ->default('pending')
                   ->change();
 
-            $table->string('deactivation_reason')->nullable()->after('membership_status');
+              if (!Schema::hasColumn('members', 'deactivation_reason')) {
+    $table->string('deactivation_reason')->nullable()->after('membership_status');
+}
+
+            // $table->string('deactivation_reason')->nullable()->after('membership_status');
         });
     }
 
