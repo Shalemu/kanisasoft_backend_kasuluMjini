@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\{
     UserSettingsController,
     UserRoleController,
     ServiceEventController,
+    ChildrenController,
 };
 
 // 🌐 Public routes
@@ -97,6 +98,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Service Events
     Route::apiResource('service-events', ServiceEventController::class);
+
+    // Children
+    Route::apiResource('children', ChildrenController::class);
 
     // Contributions
     Route::get('/contributions', [ContributionController::class, 'index']);
