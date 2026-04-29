@@ -24,7 +24,7 @@ class AuthController extends Controller
     /**
      * Convert any format to Tanzania standard: 255XXXXXXXXX
      */
-    private function formatTanzaniaPhone($phone)
+    private function formatTanzaniaPhone(string $phone)
     {
         // Remove non-numeric characters
         $num = preg_replace('/\D/', '', $phone);
@@ -624,7 +624,7 @@ public function resetPassword(Request $request)
     ]);
 }
 
-public function rejectUser(Request $request, $id)
+public function rejectUser(Request $request, int $id)
 {
     $request->validate([
         'reason' => 'required|string|max:255', // admin must provide a reason

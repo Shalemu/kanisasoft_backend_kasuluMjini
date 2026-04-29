@@ -36,7 +36,7 @@ class GroupsController extends Controller
     /**
      * Get members of a group with their contact info (phone & email)
      */
-    public function members($id)
+    public function members(int $id)
     {
         $group = Group::find($id);
 
@@ -73,7 +73,7 @@ class GroupsController extends Controller
     /**
      * Show a single group
      */
-    public function show($id)
+    public function show(int $id)
     {
         $group = Group::with(['leader', 'members'])->find($id);
 
@@ -152,7 +152,7 @@ public function store(Request $request)
 /**
  * Update group
  */
-public function update(Request $request, $id)
+public function update(Request $request, int $id)
 {
     $group = Group::find($id);
 
@@ -223,7 +223,7 @@ public function update(Request $request, $id)
     /**
      * Delete group
      */
-    public function destroy($id)
+    public function destroy(int $id)
     {
         $group = Group::find($id);
 
@@ -375,7 +375,7 @@ public function addMember(Request $request, Group $group)
     /**
      * Search members in group
      */
-    public function searchGroupMembers($id, Request $request)
+    public function searchGroupMembers(int $id, Request $request)
     {
         $keyword = strtolower($request->query('search'));
         $group = Group::with(['members.user'])->findOrFail($id);

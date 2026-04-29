@@ -39,7 +39,7 @@ class MembersController extends Controller
     /**
      * Show a specific member
      */
-    public function show($id)
+    public function show(int $id)
     {
         $member = Member::with('user')->find($id);
 
@@ -172,7 +172,7 @@ class MembersController extends Controller
     }
 
 
-    public function byUser($userId)
+    public function byUser(int $userId)
 {
     $member = Member::where('user_id', $userId)->first();
     if (!$member) {
@@ -512,7 +512,7 @@ public function stats()
     /**
      * Restore a deleted member
      */
-    public function restore($id)
+    public function restore(int $id)
     {
         $record = DeletedMember::find($id);
 
@@ -542,7 +542,7 @@ public function stats()
     /**
      * Delete member and user
      */
-    public function deleteBoth($id)
+    public function deleteBoth(int $id)
     {
         $member = Member::find($id);
 
