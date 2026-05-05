@@ -130,7 +130,7 @@ class User extends Authenticatable
     }
 
 
-    public function setRoleAttribute($value)
+    public function setRoleAttribute(string $value)
 {
     if (
         isset($this->attributes['role']) &&

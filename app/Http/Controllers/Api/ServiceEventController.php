@@ -16,7 +16,12 @@ class ServiceEventController extends Controller
         $query = ServiceEvent::query();
 
         if ($request->has('search')) {
-            $query->where('title', 'like', '%' . $request->search . '%');
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', '%' . $search . '%')
+                  ->orWhere('service_name', 'like', '%' . $search . '%')
+                  ->orWhere('preacher', 'like', '%' . $search . '%');
+            });
         }
 
         if ($request->has('category') && $request->category !== 'All') {
@@ -25,7 +30,7 @@ class ServiceEventController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'service_events' => $query->orderBy('date')->get(),
+            'service_events' => $query->orderByDesc('date')->get(),
         ]);
     }
 
@@ -35,19 +40,33 @@ class ServiceEventController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
+            'title' => 'nullable|string|max:255',
             'date' => 'required|date',
             'time' => 'nullable',
             'location' => 'nullable|string|max:255',
             'category' => 'nullable|string|max:100',
             'description' => 'nullable|string',
+            'service_name' => 'required|string|max:255',
+            'preacher' => 'nullable|string|max:255',
+            'preacher_description' => 'nullable|string|max:500',
+            'message' => 'nullable|string',
+            'attendance_children' => 'nullable|integer|min:0',
+            'attendance_women' => 'nullable|integer|min:0',
+            'attendance_men' => 'nullable|integer|min:0',
+            'total_offerings' => 'nullable|numeric|min:0',
+            'leaders_on_duty' => 'nullable|string|max:255',
         ]);
+
+        // Auto-calculate total attendance
+        $validated['total_attendance'] = ($validated['attendance_children'] ?? 0)
+            + ($validated['attendance_women'] ?? 0)
+            + ($validated['attendance_men'] ?? 0);
 
         $serviceEvent = ServiceEvent::create($validated);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Service event created successfully.',
+            'message' => 'Taarifa ya ibada imeongezwa.',
             'service_event' => $serviceEvent,
         ]);
     }
@@ -69,20 +88,34 @@ class ServiceEventController extends Controller
     public function update(Request $request, ServiceEvent $serviceEvent)
     {
         $validated = $request->validate([
-            'title' => 'sometimes|required|string|max:255',
+            'title' => 'nullable|string|max:255',
             'date' => 'sometimes|required|date',
             'time' => 'nullable',
             'location' => 'nullable|string|max:255',
             'category' => 'nullable|string|max:100',
             'description' => 'nullable|string',
+            'service_name' => 'sometimes|required|string|max:255',
+            'preacher' => 'nullable|string|max:255',
+            'preacher_description' => 'nullable|string|max:500',
+            'message' => 'nullable|string',
+            'attendance_children' => 'nullable|integer|min:0',
+            'attendance_women' => 'nullable|integer|min:0',
+            'attendance_men' => 'nullable|integer|min:0',
+            'total_offerings' => 'nullable|numeric|min:0',
+            'leaders_on_duty' => 'nullable|string|max:255',
         ]);
+
+        // Recalculate total attendance if any attendance field changed
+        $validated['total_attendance'] = ($validated['attendance_children'] ?? $serviceEvent->attendance_children)
+            + ($validated['attendance_women'] ?? $serviceEvent->attendance_women)
+            + ($validated['attendance_men'] ?? $serviceEvent->attendance_men);
 
         $serviceEvent->update($validated);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Service event updated successfully.',
-            'service_event' => $serviceEvent,
+            'message' => 'Taarifa ya ibada imesasishwa.',
+            'service_event' => $serviceEvent->fresh(),
         ]);
     }
 
