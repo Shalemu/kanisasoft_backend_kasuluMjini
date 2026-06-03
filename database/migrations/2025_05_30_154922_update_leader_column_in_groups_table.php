@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
@@ -34,10 +35,17 @@ return new class extends Migration {
         }
 
         Schema::table('groups', function (Blueprint $table) {
-            $table->dropForeign(['leader_id']);
-            $table->dropColumn('leader_id');
-            $table->string('leader')->nullable();
+            if (Schema::hasColumn('groups', 'leader_id')) {
+                if (DB::getDriverName() !== 'sqlite') {
+                    $table->dropForeign(['leader_id']);
+                }
+
+                $table->dropColumn('leader_id');
+            }
+
+            if (!Schema::hasColumn('groups', 'leader')) {
+                $table->string('leader')->nullable();
+            }
         });
     }
 };
-

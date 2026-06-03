@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Mail\MemberAuthorizedMail;
 use App\Models\DeletedMember;
+use App\Models\Guest;
 use App\Models\LeadershipRole;
 use App\Models\Member;
 use App\Models\User;
@@ -492,9 +493,13 @@ public function authorizeUser(Request $request)
 
 public function stats()
 {
+    $guestCount = Guest::count();
+
     return response()->json([
         'status' => 'success',
         'total_members' => Member::where('membership_status', 'active')->count(),
+        'total_visitors' => $guestCount,
+        'total_guests' => $guestCount,
     ]);
 }
 

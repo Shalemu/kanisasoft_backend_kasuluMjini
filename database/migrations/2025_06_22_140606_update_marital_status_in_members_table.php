@@ -14,15 +14,21 @@ return new class extends Migration
             ->whereNotIn('marital_status', ['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'])
             ->update(['marital_status' => null]);
 
-        Schema::table('members', function (Blueprint $table) {
-            $table->enum('marital_status', ['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'])
-                ->nullable()
-                ->change();
-        });
+        if (DB::getDriverName() !== 'sqlite') {
+            Schema::table('members', function (Blueprint $table) {
+                $table->enum('marital_status', ['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'])
+                    ->nullable()
+                    ->change();
+            });
+        }
     }
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         Schema::table('members', function (Blueprint $table) {
             $table->string('marital_status')->nullable()->change();
         });

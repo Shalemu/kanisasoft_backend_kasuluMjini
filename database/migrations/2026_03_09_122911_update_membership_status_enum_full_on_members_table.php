@@ -9,10 +9,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Step 0: temporarily change enum to string to allow updates
-        Schema::table('members', function (Blueprint $table) {
-            $table->string('membership_status')->change();
-        });
+        if (DB::getDriverName() !== 'sqlite') {
+            // Step 0: temporarily change enum to string to allow updates
+            Schema::table('members', function (Blueprint $table) {
+                $table->string('membership_status')->change();
+            });
+        }
 
         // Step 1: set any invalid statuses to 'pending'
         DB::table('members')
@@ -21,18 +23,20 @@ return new class extends Migration
 
         // Step 2: convert column to new full ENUM
         Schema::table('members', function (Blueprint $table) {
-            $table->enum('membership_status', [
-                'pending',
-                'active',
-                'rejected',
-                'deactivated',
-                'left',
-                'detained',
-                'deceased',
-                'lost'
-            ])
-            ->default('pending')
-            ->change();
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->enum('membership_status', [
+                    'pending',
+                    'active',
+                    'rejected',
+                    'deactivated',
+                    'left',
+                    'detained',
+                    'deceased',
+                    'lost'
+                ])
+                ->default('pending')
+                ->change();
+            }
 
             // Make sure deactivation_reason exists
             if (!Schema::hasColumn('members', 'deactivation_reason')) {
@@ -44,8 +48,13 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('members', function (Blueprint $table) {
-            $table->enum('membership_status', ['pending', 'active', 'rejected', 'deactivated'])->default('pending')->change();
-            $table->dropColumn('deactivation_reason');
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->enum('membership_status', ['pending', 'active', 'rejected', 'deactivated'])->default('pending')->change();
+            }
+
+            if (Schema::hasColumn('members', 'deactivation_reason')) {
+                $table->dropColumn('deactivation_reason');
+            }
         });
     }
 };

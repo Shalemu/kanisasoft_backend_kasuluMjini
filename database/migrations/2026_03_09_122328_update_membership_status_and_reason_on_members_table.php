@@ -15,9 +15,11 @@ return new class extends Migration
 
         // Then, add the new enum values and the deactivation_reason column
         Schema::table('members', function (Blueprint $table) {
-            $table->enum('membership_status', ['pending', 'active', 'rejected', 'deactivated'])
-                  ->default('pending')
-                  ->change();
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->enum('membership_status', ['pending', 'active', 'rejected', 'deactivated'])
+                      ->default('pending')
+                      ->change();
+            }
 
               if (!Schema::hasColumn('members', 'deactivation_reason')) {
     $table->string('deactivation_reason')->nullable()->after('membership_status');
@@ -30,12 +32,16 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('members', function (Blueprint $table) {
-            // Rollback enum to old values
-            $table->enum('membership_status', ['active', 'left', 'detained', 'deceased', 'lost'])
-                  ->default('active')
-                  ->change();
+            if (DB::getDriverName() !== 'sqlite') {
+                // Rollback enum to old values
+                $table->enum('membership_status', ['active', 'left', 'detained', 'deceased', 'lost'])
+                      ->default('active')
+                      ->change();
+            }
 
-            $table->dropColumn('deactivation_reason');
+            if (Schema::hasColumn('members', 'deactivation_reason')) {
+                $table->dropColumn('deactivation_reason');
+            }
         });
     }
 };

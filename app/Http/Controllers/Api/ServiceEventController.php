@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 class ServiceEventController extends Controller
 {
     /**
-     * Get all service events with optional search and category filter
+     * Get all service events with optional search, category, and date filters.
      */
     public function index(Request $request)
     {
@@ -27,6 +27,19 @@ class ServiceEventController extends Controller
 
         if ($request->filled('category') && $request->category !== 'All') {
             $query->where('category', $request->category);
+        }
+
+        $selectedDate = $request->input('date', $request->input('filter_date'));
+        if (filled($selectedDate)) {
+            $query->whereDate('date', $selectedDate);
+        }
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('date', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('date', '<=', $request->to_date);
         }
 
         return response()->json([
@@ -94,7 +107,7 @@ class ServiceEventController extends Controller
     public function update(Request $request, ServiceEvent $serviceEvent)
     {
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
+            'title' => 'sometimes|required|string|max:255',
             'date' => 'sometimes|required|date',
             'time' => 'nullable',
             'location' => 'nullable|string|max:255',

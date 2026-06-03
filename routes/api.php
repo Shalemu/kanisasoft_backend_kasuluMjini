@@ -122,16 +122,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
-Route::middleware('auth:sanctum')->prefix('service-events')->group(function () {
-    Route::get('/', [ServiceEventController::class, 'index']);
-    Route::get('/{id}', [ServiceEventController::class, 'show']);
-    Route::post('/', [ServiceEventController::class, 'store']);
-    Route::put('/{id}', [ServiceEventController::class, 'update']);
-    Route::delete('/{id}', [ServiceEventController::class, 'destroy']);
-});
-
-  
-
     // Contributions
     Route::get('/contributions', [ContributionController::class, 'index']);
     Route::post('/contributions', [ContributionController::class, 'store']);
@@ -181,5 +171,4 @@ Route::get('/server-ip', function () {
         'client_ip' => request()->ip(),
     ]);
 });
-
 

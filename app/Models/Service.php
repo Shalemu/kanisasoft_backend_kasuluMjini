@@ -4,20 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class ServiceEvent extends Model
+class Service extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'type',
         'date',
-        'service_name',
-        'preacher',
-        'message',
-        'attendance_women',
-        'attendance_men',
-        'attendance_children',
-        'total_offerings',
-        'leaders_on_duty',
     ];
+
+    protected $casts = [
+        'date' => 'date',
+    ];
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
+    }
 }
