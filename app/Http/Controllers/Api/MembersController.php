@@ -396,6 +396,7 @@ public function authorizeUser(Request $request)
         $member->update([
             'membership_status' => 'active',
             'membership_number' => $member->membership_number ?? $this->generateMembershipNumber(),
+            'is_authorized' => 1,
         ]);
 
     } else {
@@ -416,6 +417,7 @@ public function authorizeUser(Request $request)
             'email' => $user->email,
             'membership_status' => 'active',
             'membership_number' => $membershipNumber,
+            'is_authorized' => 1,
         ]);
 
         $user->role = 'mshirika';
@@ -675,6 +677,4 @@ public function stats()
         }
     }
 }
-
-
 }

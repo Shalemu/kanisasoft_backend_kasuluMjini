@@ -16,8 +16,6 @@ use Illuminate\Validation\Rule;
 
 
 
-
-
 class AuthController extends Controller
 {
     /**
@@ -62,7 +60,7 @@ class AuthController extends Controller
             'phone' => $this->formatTanzaniaPhone($request->phone),
         ]);
 
-        $zoneValues = ['MURUBOMBO','MURUSI B','KIGANAMO','MURUSI A','KUMUNYIKA B','KAGUNGA C','KUMUNYIKA A','KAGANGA B','MURUBONA A','KAGUNGA A'];
+        $zoneValues = ['MURUBOMBO','MURUSI B','KIGANAMO','MURUSI A','KUMUNYIKA B','KAGUNGA C','KUMUNYIKA A','KAGUNGA B','MURUBONA A','KAGUNGA A','MURUBONA B'];
 
         $request->validate([
             'full_name' => 'required|string|max:255',
@@ -123,6 +121,10 @@ class AuthController extends Controller
             // Familia
             'lives_alone' => 'nullable|boolean',
             'lives_with' => 'nullable|string',
+            'family_role' => 'nullable|string|max:255',
+            'live_with_who' => 'nullable|string|max:255',
+            'next_of_kin' => 'nullable|string|max:255',
+            'next_of_kin_phone' => 'nullable|string|max:255',
         ]);
 
         try {
@@ -151,56 +153,79 @@ class AuthController extends Controller
             ]);
 
             Member::create([
-                'user_id' => $user->id,
-                'full_name' => $request->full_name,
-                'gender' => $request->gender,
-                'birth_date' => $request->birth_date,
-                'birth_place' => $request->birth_place,
-                'birth_region' => $request->birth_region,
-                'birth_ward' => $request->birth_ward,
-                'birth_street' => $request->birth_street,
-                'marital_status' => $request->marital_status,
-                'marriage_type' => $request->marriage_type,
-                'spouse_name' => $request->spouse_name,
-                'number_of_children' => $request->children_count,
-                'residential_zone' => $request->zone,
-                'residential_ward' => $request->residential_ward,
-                'residential_street' => $request->residential_street,
-                'phone_number' => $request->phone,
-                'email' => $request->email,
-                'has_disability' => $request->has_disability ?? false,
-                'disability_description' => $request->disability_description,
+            'user_id' => $user->id,
 
-                'date_of_conversion' => $request->date_of_conversion,
-                'conversion_year' => $request->conversion_year,
-                'conversion_month' => $request->conversion_month,
-                'conversion_day' => $request->conversion_day,
-                'church_of_conversion' => $request->church_of_conversion,
-                'baptism_date' => $request->baptism_date,
-                'baptism_year' => $request->baptism_year,
-                'baptism_month' => $request->baptism_month,
-                'baptism_day' => $request->baptism_day,
-                'baptism_place' => $request->baptism_place,
-                'baptizer_name' => $request->baptizer_name,
-                'baptizer_title' => $request->baptizer_title,
-                'previous_church' => $request->previous_church,
-                'church_service' => $request->church_service,
-                'service_duration' => $request->service_duration,
-                'participates_communion' => $request->participates_communion,
+            // Personal
+            'full_name' => $request->full_name,
+            'gender' => $request->gender,
+            'birth_date' => $request->birth_date,
+            'birth_place' => $request->birth_place,
+            'birth_region' => $request->birth_region,
+            'birth_district' => $request->birth_district,
+            'birth_ward' => $request->birth_ward,
+            'birth_street' => $request->birth_street,
 
-                'education_level' => $request->education_level,
-                'profession' => $request->profession,
-                'occupation' => $request->occupation,
-                'work_place' => $request->work_place,
-                'work_contact' => $request->work_contact,
+            // Contact
+            'phone_number' => $request->phone,
+            'whatsapp_number' => $request->whatsapp_number,
+            'email' => $request->email,
 
-                'lives_alone' => $request->lives_alone,
-                'lives_with' => $request->lives_with,
+            // Family
+            'marital_status' => $request->marital_status,
+            'marriage_type' => $request->marriage_type,
+            'spouse_name' => $request->spouse_name,
+            'number_of_children' => $request->children_count,
+            'residential_zone' => $request->zone,
+            'residential_ward' => $request->residential_ward,
+            'residential_street' => $request->residential_street,
 
-                'membership_status' => 'pending',
-            ]);
+            // Disability
+            'has_disability' => $request->has_disability ?? false,
+            'disability_description' => $request->disability_description,
 
-                    // Notify admins
+            // Faith
+            'date_of_conversion' => $request->date_of_conversion,
+            'conversion_year' => $request->conversion_year,
+            'conversion_month' => $request->conversion_month,
+            'conversion_day' => $request->conversion_day,
+            'church_of_conversion' => $request->church_of_conversion,
+
+            'baptism_date' => $request->baptism_date,
+            'baptism_year' => $request->baptism_year,
+            'baptism_month' => $request->baptism_month,
+            'baptism_day' => $request->baptism_day,
+            'baptism_place' => $request->baptism_place,
+            'baptizer_name' => $request->baptizer_name,
+            'baptizer_title' => $request->baptizer_title,
+
+            'previous_church' => $request->previous_church,
+            'previous_church_status' => $request->previous_church_status,
+            'tangu_lini' => $request->tangu_lini,
+            'kanisa_ulipotoka' => $request->kanisa_ulipotoka,
+
+            'church_service' => $request->church_service,
+            'service_duration' => $request->service_duration,
+            'participates_communion' => $request->participates_communion,
+
+            // Education
+            'education_level' => $request->education_level,
+            'profession' => $request->profession,
+            'occupation' => $request->occupation,
+            'work_place' => $request->work_place,
+            'work_contact' => $request->work_contact,
+
+            // Family
+            'lives_alone' => $request->lives_alone,
+            'lives_with' => $request->lives_with,
+            'family_role' => $request->family_role,
+            'live_with_who' => $request->live_with_who,
+            'next_of_kin' => $request->next_of_kin,
+            'next_of_kin_phone' => $request->next_of_kin_phone,
+
+            'membership_status' => 'pending',
+        ]);
+
+        // Notify admins
         $notificationStatus = [];
         $admins = User::where('role', 'admin')->get();
         foreach ($admins as $admin) {
@@ -228,11 +253,6 @@ class AuthController extends Controller
         }
     }
 
-
-    
-
-
-
     /**
      * UPDATE PROFILE
      */
@@ -252,7 +272,7 @@ public function updateProfile(Request $request)
     ]);
 
     // Validation rules
-    $zoneValues = ['MURUBOMBO','MURUSI B','KIGANAMO','MURUSI A','KUMUNYIKA B','KAGUNGA C','KUMUNYIKA A','KAGANGA B','MURUBONA A','KAGUNGA A'];
+    $zoneValues = ['MURUBOMBO','MURUSI B','KIGANAMO','MURUSI A','KUMUNYIKA B','KAGUNGA C','KUMUNYIKA A','KAGANGA B','MURUBONA A','KAGUNGA A', 'KAGUNGA B','MURUBONA B'];
 
     $request->validate([
         'full_name' => 'required|string|max:255',
@@ -462,6 +482,7 @@ public function updateProfile(Request $request)
             $leadershipRoles = $leader->roles->pluck('title')->toArray();
         }
     }
+    
 
     $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -476,7 +497,7 @@ public function updateProfile(Request $request)
     /**
      * CHANGE PASSWORD
      */
-    public function changePassword(Request $request)
+public function changePassword(Request $request)
     {
         $request->validate([
             'current_password' => 'required|string',
@@ -511,21 +532,19 @@ public function updateProfile(Request $request)
      * ME
      */
     public function me(Request $request)
-{
-    $user = $request->user();
+    {
+        $user = $request->user();
 
-    $member = Member::with([
-        'user',
-        'groups:id,name,whatsapp_link' 
-    ])->where('user_id', $user->id)->first();
+        $member = Member::with([
+            'user',
+            'groups:id,name,whatsapp_link' 
+        ])->where('user_id', $user->id)->first();
 
-    return response()->json([
-        'status' => 'success',
-        'member' => $member,
-    ]);
-}
-
-
+        return response()->json([
+            'status' => 'success',
+            'member' => $member,
+        ]);
+    }
 
     /**
      * ALL USERS
@@ -600,9 +619,7 @@ public function updateProfile(Request $request)
 }
 
 
-    /**
- * FORGOT PASSWORD
- */
+ 
 public function forgotPassword(Request $request)
 {
     $request->validate([
@@ -627,12 +644,7 @@ public function forgotPassword(Request $request)
 }
 
 
-/**
- * RESET PASSWORD
- */
-/**
- * RESET PASSWORD (without token)
- */
+
 public function resetPassword(Request $request)
 {
     $request->validate([

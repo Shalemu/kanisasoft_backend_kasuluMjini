@@ -36,7 +36,7 @@ class User extends Authenticatable
         'has_disability',
         'disability_description',
         'password',
-        'role', // SYSTEM role only (admin | kiongozi | mshirika)
+        'role', 
     ];
 
     protected $hidden = [
@@ -130,8 +130,9 @@ class User extends Authenticatable
     }
 
 
-    public function setRoleAttribute(string $value)
+public function setRoleAttribute($value): void
 {
+    // Prevent changing existing admin role
     if (
         isset($this->attributes['role']) &&
         $this->attributes['role'] === 'admin' &&
@@ -140,7 +141,8 @@ class User extends Authenticatable
         return;
     }
 
+    // IMPORTANT:
+    // Allow null (pending users)
     $this->attributes['role'] = $value;
 }
-
 }

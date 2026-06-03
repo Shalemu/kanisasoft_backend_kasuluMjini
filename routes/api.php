@@ -22,7 +22,7 @@ use App\Http\Controllers\Api\{
     ChildrenController,
 };
 
-// 🌐 Public routes
+// Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/change-password', [AuthController::class, 'changePassword'])->middleware('auth:sanctum');
@@ -32,10 +32,10 @@ Route::middleware('auth:sanctum')->post('/users/assign-roles', [UserRoleControll
 
 
 
-// 🖼️ Public access to gallery
+//  Public access to gallery
 Route::get('/gallery', [GalleryController::class, 'index']);
 
-// 🔐 Protected routes
+// Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
