@@ -53,6 +53,10 @@ class ServiceEventController extends Controller
      */
     public function store(Request $request)
     {
+        if (!$request->filled('title') && $request->filled('service_name')) {
+            $request->merge(['title' => $request->input('service_name')]);
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'date' => 'required|date',
@@ -106,6 +110,10 @@ class ServiceEventController extends Controller
      */
     public function update(Request $request, ServiceEvent $serviceEvent)
     {
+        if (!$request->filled('title') && $request->filled('service_name')) {
+            $request->merge(['title' => $request->input('service_name')]);
+        }
+
         $validated = $request->validate([
             'title' => 'sometimes|required|string|max:255',
             'date' => 'sometimes|required|date',
