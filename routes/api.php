@@ -77,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     // Guests
+    Route::get('/guests/stats', [GuestsController::class, 'stats']);
     Route::apiResource('guests', GuestsController::class);
 
     // Groups
@@ -171,4 +172,3 @@ Route::get('/server-ip', function () {
         'client_ip' => request()->ip(),
     ]);
 });
-

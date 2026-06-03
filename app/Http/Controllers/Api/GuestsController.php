@@ -10,13 +10,66 @@ use Illuminate\Support\Facades\Validator;
 class GuestsController extends Controller
 {
     // Get all guests
-    public function index()
+    public function index(Request $request)
     {
-        $guests = Guest::latest()->get();
+        $query = Guest::query();
+
+        $selectedDate = $request->input('date', $request->input('filter_date'));
+        if (filled($selectedDate)) {
+            $query->whereDate('visit_date', $selectedDate);
+        }
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('visit_date', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('visit_date', '<=', $request->to_date);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+
+            $query->where(function ($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('church_origin', 'like', "%{$search}%")
+                    ->orWhere('other', 'like', "%{$search}%");
+            });
+        }
+
+        $summaryQuery = clone $query;
+        $guests = $query->latest()->get();
 
         return response()->json([
             'status' => 'success',
+            'summary' => [
+                'total_guests' => (clone $summaryQuery)->count(),
+                'total_prayer' => (clone $summaryQuery)->where('prayer', true)->count(),
+                'total_salvation' => (clone $summaryQuery)->where('salvation', true)->count(),
+                'total_joining' => (clone $summaryQuery)->where('joining', true)->count(),
+                'total_travel' => (clone $summaryQuery)->where('travel', true)->count(),
+            ],
             'guests' => $guests
+        ]);
+    }
+
+    public function stats(Request $request)
+    {
+        $query = Guest::query();
+
+        $selectedDate = $request->input('date', $request->input('filter_date'));
+        if (filled($selectedDate)) {
+            $query->whereDate('visit_date', $selectedDate);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'total_guests' => (clone $query)->count(),
+            'total_prayer' => (clone $query)->where('prayer', true)->count(),
+            'total_salvation' => (clone $query)->where('salvation', true)->count(),
+            'total_joining' => (clone $query)->where('joining', true)->count(),
+            'total_travel' => (clone $query)->where('travel', true)->count(),
         ]);
     }
 

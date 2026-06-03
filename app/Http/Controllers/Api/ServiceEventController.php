@@ -8,6 +8,54 @@ use Illuminate\Http\Request;
 
 class ServiceEventController extends Controller
 {
+    private function normalizePayload(Request $request): void
+    {
+        $this->mergeFirstFilled($request, 'service_name', [
+            'service_type',
+            'serviceType',
+            'worship_type',
+            'worshipType',
+            'type',
+            'service',
+            'category',
+        ]);
+
+        $this->mergeFirstFilled($request, 'title', [
+            'service_name',
+            'service_type',
+            'serviceType',
+            'worship_type',
+            'worshipType',
+            'type',
+            'service',
+            'category',
+        ]);
+
+        $this->mergeFirstFilled($request, 'date', ['service_date', 'serviceDate', 'visit_date']);
+        $this->mergeFirstFilled($request, 'preacher', ['mhubiri', 'minister']);
+        $this->mergeFirstFilled($request, 'preacher_description', ['sermon', 'sermon_title', 'sermonTitle', 'mahubiri']);
+        $this->mergeFirstFilled($request, 'message', ['ujumbe']);
+        $this->mergeFirstFilled($request, 'leaders_on_duty', ['service_leader', 'serviceLeader', 'worship_leader', 'worshipLeader', 'leader']);
+        $this->mergeFirstFilled($request, 'attendance_children', ['children', 'children_attendance', 'childrenAttendance']);
+        $this->mergeFirstFilled($request, 'attendance_women', ['women', 'women_attendance', 'womenAttendance']);
+        $this->mergeFirstFilled($request, 'attendance_men', ['men', 'men_attendance', 'menAttendance']);
+        $this->mergeFirstFilled($request, 'total_offerings', ['offerings', 'total_sadaka', 'sadaka']);
+    }
+
+    private function mergeFirstFilled(Request $request, string $target, array $aliases): void
+    {
+        if ($request->filled($target)) {
+            return;
+        }
+
+        foreach ($aliases as $alias) {
+            if ($request->filled($alias)) {
+                $request->merge([$target => $request->input($alias)]);
+                return;
+            }
+        }
+    }
+
     /**
      * Get all service events with optional search, category, and date filters.
      */
@@ -53,9 +101,7 @@ class ServiceEventController extends Controller
      */
     public function store(Request $request)
     {
-        if (!$request->filled('title') && $request->filled('service_name')) {
-            $request->merge(['title' => $request->input('service_name')]);
-        }
+        $this->normalizePayload($request);
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -91,7 +137,7 @@ class ServiceEventController extends Controller
             'status' => 'success',
             'message' => 'Taarifa ya ibada imeongezwa.',
             'service_event' => $serviceEvent,
-        ]);
+        ], 201);
     }
 
     /**
@@ -110,9 +156,7 @@ class ServiceEventController extends Controller
      */
     public function update(Request $request, ServiceEvent $serviceEvent)
     {
-        if (!$request->filled('title') && $request->filled('service_name')) {
-            $request->merge(['title' => $request->input('service_name')]);
-        }
+        $this->normalizePayload($request);
 
         $validated = $request->validate([
             'title' => 'sometimes|required|string|max:255',
