@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Guest;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class GuestsController extends Controller
@@ -12,6 +12,14 @@ class GuestsController extends Controller
     // Get all guests
     public function index(Request $request)
     {
+        $request->validate([
+            'date' => 'nullable|date',
+            'filter_date' => 'nullable|date',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+            'search' => 'nullable|string|max:255',
+        ]);
+
         $query = Guest::query();
 
         $selectedDate = $request->input('date', $request->input('filter_date'));
@@ -50,12 +58,19 @@ class GuestsController extends Controller
                 'total_joining' => (clone $summaryQuery)->where('joining', true)->count(),
                 'total_travel' => (clone $summaryQuery)->where('travel', true)->count(),
             ],
-            'guests' => $guests
+            'guests' => $guests,
         ]);
     }
 
     public function stats(Request $request)
     {
+        $request->validate([
+            'date' => 'nullable|date',
+            'filter_date' => 'nullable|date',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+        ]);
+
         $query = Guest::query();
 
         $selectedDate = $request->input('date', $request->input('filter_date'));
@@ -63,9 +78,24 @@ class GuestsController extends Controller
             $query->whereDate('visit_date', $selectedDate);
         }
 
+        if ($request->filled('from_date')) {
+            $query->whereDate('visit_date', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('visit_date', '<=', $request->to_date);
+        }
+
+        $startOfThisMonth = now()->startOfMonth()->toDateString();
+        $endOfThisMonth = now()->endOfMonth()->toDateString();
+        $startOfLastMonth = now()->subMonthNoOverflow()->startOfMonth()->toDateString();
+        $endOfLastMonth = now()->subMonthNoOverflow()->endOfMonth()->toDateString();
+
         return response()->json([
             'status' => 'success',
             'total_guests' => (clone $query)->count(),
+            'guests_this_month' => Guest::whereBetween('visit_date', [$startOfThisMonth, $endOfThisMonth])->count(),
+            'guests_last_month' => Guest::whereBetween('visit_date', [$startOfLastMonth, $endOfLastMonth])->count(),
             'total_prayer' => (clone $query)->where('prayer', true)->count(),
             'total_salvation' => (clone $query)->where('salvation', true)->count(),
             'total_joining' => (clone $query)->where('joining', true)->count(),
@@ -77,15 +107,15 @@ class GuestsController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'full_name'      => 'required|string|max:255',
-            'phone'          => 'nullable|string|max:20',
-            'church_origin'  => 'required|string|max:255',
-            'visit_date'     => 'nullable|date',
-            'prayer'         => 'boolean',
-            'salvation'      => 'boolean',
-            'joining'        => 'boolean',
-            'travel'         => 'boolean',
-            'other'          => 'nullable|string|max:255',
+            'full_name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:20',
+            'church_origin' => 'required|string|max:255',
+            'visit_date' => 'nullable|date',
+            'prayer' => 'boolean',
+            'salvation' => 'boolean',
+            'joining' => 'boolean',
+            'travel' => 'boolean',
+            'other' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -96,21 +126,21 @@ class GuestsController extends Controller
         }
 
         $guest = Guest::create([
-            'full_name'     => $request->full_name,
-            'phone'         => $request->phone,
+            'full_name' => $request->full_name,
+            'phone' => $request->phone,
             'church_origin' => $request->church_origin,
-            'visit_date'    => $request->visit_date ?? now()->toDateString(), 
-            'prayer'        => $request->prayer ?? false,
-            'salvation'     => $request->salvation ?? false,
-            'joining'       => $request->joining ?? false,
-            'travel'        => $request->travel ?? false,
-            'other'         => $request->other,
+            'visit_date' => $request->visit_date ?? now()->toDateString(),
+            'prayer' => $request->prayer ?? false,
+            'salvation' => $request->salvation ?? false,
+            'joining' => $request->joining ?? false,
+            'travel' => $request->travel ?? false,
+            'other' => $request->other,
         ]);
 
         return response()->json([
             'status' => 'success',
             'message' => 'Mgeni ameongezwa kikamilifu',
-            'guest' => $guest
+            'guest' => $guest,
         ], 201);
     }
 
@@ -119,16 +149,16 @@ class GuestsController extends Controller
     {
         $guest = Guest::find($id);
 
-        if (!$guest) {
+        if (! $guest) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Mgeni hakupatikana'
+                'message' => 'Mgeni hakupatikana',
             ], 404);
         }
 
         return response()->json([
             'status' => 'success',
-            'guest' => $guest
+            'guest' => $guest,
         ]);
     }
 
@@ -137,23 +167,23 @@ class GuestsController extends Controller
     {
         $guest = Guest::find($id);
 
-        if (!$guest) {
+        if (! $guest) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Mgeni hakupatikana'
+                'message' => 'Mgeni hakupatikana',
             ], 404);
         }
 
         $validator = Validator::make($request->all(), [
-            'full_name'      => 'sometimes|required|string|max:255',
-            'phone'          => 'nullable|string|max:20',
-            'church_origin'  => 'sometimes|required|string|max:255',
-            'visit_date'     => 'nullable|date',
-            'prayer'         => 'boolean',
-            'salvation'      => 'boolean',
-            'joining'        => 'boolean',
-            'travel'         => 'boolean',
-            'other'          => 'nullable|string|max:255',
+            'full_name' => 'sometimes|required|string|max:255',
+            'phone' => 'nullable|string|max:20',
+            'church_origin' => 'sometimes|required|string|max:255',
+            'visit_date' => 'nullable|date',
+            'prayer' => 'boolean',
+            'salvation' => 'boolean',
+            'joining' => 'boolean',
+            'travel' => 'boolean',
+            'other' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -163,22 +193,12 @@ class GuestsController extends Controller
             ], 422);
         }
 
-        $guest->update([
-            'full_name'     => $request->full_name ?? $guest->full_name,
-            'phone'         => $request->phone ?? $guest->phone,
-            'church_origin' => $request->church_origin ?? $guest->church_origin,
-            'visit_date'    => $request->visit_date ?? $guest->visit_date,
-            'prayer'        => $request->prayer ?? $guest->prayer,
-            'salvation'     => $request->salvation ?? $guest->salvation,
-            'joining'       => $request->joining ?? $guest->joining,
-            'travel'        => $request->travel ?? $guest->travel,
-            'other'         => $request->other ?? $guest->other,
-        ]);
+        $guest->update($validator->validated());
 
         return response()->json([
             'status' => 'success',
             'message' => 'Taarifa za mgeni zimesasishwa',
-            'guest' => $guest
+            'guest' => $guest,
         ]);
     }
 
@@ -187,10 +207,10 @@ class GuestsController extends Controller
     {
         $guest = Guest::find($id);
 
-        if (!$guest) {
+        if (! $guest) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Mgeni hakupatikana'
+                'message' => 'Mgeni hakupatikana',
             ], 404);
         }
 
@@ -198,7 +218,7 @@ class GuestsController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Mgeni amefutwa kikamilifu'
+            'message' => 'Mgeni amefutwa kikamilifu',
         ]);
     }
 }

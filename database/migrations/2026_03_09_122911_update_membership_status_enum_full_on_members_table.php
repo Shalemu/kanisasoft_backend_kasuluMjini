@@ -10,7 +10,7 @@ return new class extends Migration
     public function up(): void
     {
         if (DB::getDriverName() !== 'sqlite') {
-            // Step 0: temporarily change enum to string to allow updates
+            // Temporarily change enum to string to allow updates.
             Schema::table('members', function (Blueprint $table) {
                 $table->string('membership_status')->change();
             });
@@ -32,14 +32,14 @@ return new class extends Migration
                     'left',
                     'detained',
                     'deceased',
-                    'lost'
+                    'lost',
                 ])
-                ->default('pending')
-                ->change();
+                    ->default('pending')
+                    ->change();
             }
 
             // Make sure deactivation_reason exists
-            if (!Schema::hasColumn('members', 'deactivation_reason')) {
+            if (! Schema::hasColumn('members', 'deactivation_reason')) {
                 $table->string('deactivation_reason')->nullable()->after('membership_status');
             }
         });

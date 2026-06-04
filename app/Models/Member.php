@@ -78,12 +78,10 @@ class Member extends Model
         'is_authorized',
     ];
 
-
     protected function serializeDate(\DateTimeInterface $date)
-{
-    return $date->format('Y-m-d');
-}
-
+    {
+        return $date->format('Y-m-d');
+    }
 
     protected $casts = [
         'birth_date' => 'date',
@@ -107,7 +105,7 @@ class Member extends Model
     public function groups()
     {
         return $this->belongsToMany(Group::class, 'member_group', 'member_id', 'group_id')
-                    ->withTimestamps();
+            ->withTimestamps();
     }
 
     /**
@@ -116,5 +114,15 @@ class Member extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function marriageAsHusband()
+    {
+        return $this->hasOne(MemberMarriage::class, 'husband_id');
+    }
+
+    public function marriageAsWife()
+    {
+        return $this->hasOne(MemberMarriage::class, 'wife_id');
     }
 }

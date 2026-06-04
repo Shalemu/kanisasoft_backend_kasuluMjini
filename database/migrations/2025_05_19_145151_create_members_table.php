@@ -51,7 +51,16 @@ return new class extends Migration
             $table->string('membership_number')->nullable();
             $table->string('verified_by')->nullable();
             $table->date('membership_start_date')->nullable();
-            $table->enum('membership_status', ['active', 'left', 'detained', 'deceased', 'lost'])->default('active');
+            $table->enum('membership_status', [
+                'pending',
+                'active',
+                'rejected',
+                'deactivated',
+                'left',
+                'detained',
+                'deceased',
+                'lost',
+            ])->default('pending');
 
             // Authorization flag: has admin authorized this user as a member?
             $table->boolean('is_authorized')->default(false);

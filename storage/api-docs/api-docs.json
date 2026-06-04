@@ -325,6 +325,32 @@
                 ]
             }
         },
+        "/api/users/pending-registrations": {
+            "get": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Get pending registration count and latest registrations",
+                "operationId": "2a4a71c3756f00e5b3d34de7c70db029",
+                "responses": {
+                    "200": {
+                        "description": "Pending registrations",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/change-password": {
             "post": {
                 "tags": [
@@ -917,6 +943,128 @@
                 "responses": {
                     "200": {
                         "description": "Member statistics",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/members/reports": {
+            "get": {
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Get filtered members for reports",
+                "operationId": "868b16b69d4a439ff8eb1d16904af24d",
+                "responses": {
+                    "200": {
+                        "description": "Filtered members",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/member-marriages": {
+            "get": {
+                "tags": [
+                    "Members"
+                ],
+                "summary": "List linked member marriages",
+                "operationId": "d0eb12346b0821946f664e2423154fdd",
+                "responses": {
+                    "200": {
+                        "description": "Member marriages",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Link a husband and wife",
+                "operationId": "f1e1f8b9d9f5ff66199f006e0d84c33b",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GenericJsonRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Marriage linked",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/member-marriages/{id}": {
+            "delete": {
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Remove a member marriage link",
+                "operationId": "1500700445876c6a0e37b4df0b6f8c4f",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Marriage link removed",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2099,6 +2247,32 @@
                 "responses": {
                     "200": {
                         "description": "Guest deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/guests/stats": {
+            "get": {
+                "tags": [
+                    "People"
+                ],
+                "summary": "Get guest statistics",
+                "operationId": "513f71a6c3b71ddb6c533499d854abb0",
+                "responses": {
+                    "200": {
+                        "description": "Guest statistics",
                         "content": {
                             "application/json": {
                                 "schema": {

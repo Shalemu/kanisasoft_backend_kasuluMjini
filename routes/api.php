@@ -1,29 +1,27 @@
 <?php
 
+use App\Http\Controllers\Api\AssetController;
+use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ChildrenController;
+use App\Http\Controllers\Api\ContributionController;
+use App\Http\Controllers\Api\ContributionTypeController;
+use App\Http\Controllers\Api\EventController;
+use App\Http\Controllers\Api\GalleryController;
+use App\Http\Controllers\Api\GroupsController;
+use App\Http\Controllers\Api\GuestsController;
+use App\Http\Controllers\Api\LeaderController;
+use App\Http\Controllers\Api\LeadershipRoleController;
+use App\Http\Controllers\Api\MemberMarriageController;
+use App\Http\Controllers\Api\MembersController;
+use App\Http\Controllers\Api\ServiceController;
+use App\Http\Controllers\Api\ServiceEventController;
+use App\Http\Controllers\Api\SMSController;
+use App\Http\Controllers\Api\UserRoleController;
+use App\Http\Controllers\Api\UserSettingsController;
+use App\Models\Attendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\{
-    AuthController,
-    MembersController,
-    GuestsController,
-    GroupsController,
-    AdminController,
-    LeaderController,
-    LeadershipRoleController,
-    EventController,
-    ContributionController,
-    ContributionTypeController,
-    AssetController,
-    SMSController,
-    GalleryController,
-    UserSettingsController,
-    UserRoleController,
-   ServiceEventController,
-   AttendanceController,
-   ChildrenController
-
-};
-use App\Models\Attendance;
 
 //  Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -32,8 +30,6 @@ Route::post('/change-password', [AuthController::class, 'changePassword'])->midd
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::middleware('auth:sanctum')->post('/users/assign-roles', [UserRoleController::class, 'assignRoles']);
-
-
 
 // Public access to gallery
 Route::get('/gallery', [GalleryController::class, 'index']);
@@ -47,44 +43,43 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/mtumiaji', [AuthController::class, 'me']);
     Route::post('/user/update-profile', [AuthController::class, 'updateProfile']);
     Route::get('/users', [AuthController::class, 'allUsers']);
+    Route::get('/users/pending-registrations', [AuthController::class, 'pendingRegistrations']);
     // Reject a user (mark as rejected instead of deleting)
-   Route::post('/users/{id}/reject', [AuthController::class, 'rejectUser']);
+    Route::post('/users/{id}/reject', [AuthController::class, 'rejectUser']);
 
     // Members
+    Route::get('/members/stats', [MembersController::class, 'stats']);
+    Route::get('/members/reports', [MembersController::class, 'report']);
+    Route::get('/member-marriages', [MemberMarriageController::class, 'index']);
+    Route::post('/member-marriages', [MemberMarriageController::class, 'store']);
+    Route::delete('/member-marriages/{memberMarriage}', [MemberMarriageController::class, 'destroy']);
     Route::apiResource('members', MembersController::class);
     Route::post('/authorize-user', [MembersController::class, 'authorizeUser']);
     Route::post('/members/{member}/deactivate', [MembersController::class, 'deactivate']);
     Route::post('/members/{member}/activate', [MembersController::class, 'activate']);
     Route::delete('/members/{id}/delete-both', [MembersController::class, 'deleteBoth']);
     Route::get('/members/by-user/{user}', [MembersController::class, 'byUser']);
-    Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/members/stats', [MembersController::class, 'stats']);
-});
+    // Attendance
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/attendance', [AttendanceController::class, 'index']);
+        Route::post('/attendance', [AttendanceController::class, 'store']);
+        Route::get('/attendance/{serviceId}', [AttendanceController::class, 'show']);
+    });
 
-// Attendance
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/attendance', [AttendanceController::class, 'index']);
-    Route::post('/attendance', [AttendanceController::class, 'store']);
-    Route::get('/attendance/{serviceId}', [AttendanceController::class, 'show']);
-});
-
-//services
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/services', [\App\Http\Controllers\Api\ServiceController::class, 'store']);
-});
-
-
-
+    // services
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/services', [ServiceController::class, 'store']);
+    });
 
     // Guests
     Route::get('/guests/stats', [GuestsController::class, 'stats']);
     Route::apiResource('guests', GuestsController::class);
 
     // Groups
+    Route::get('/groups/filter', [GroupsController::class, 'filterByZone']);
     Route::apiResource('groups', GroupsController::class);
     Route::get('/groups/{id}/members', [GroupsController::class, 'members']);
     Route::post('/groups/{group}/assign-leader', [GroupsController::class, 'assignLeader']);
-    Route::get('/groups/filter', [GroupsController::class, 'filterByZone']);
     Route::get('/groups/{id}/members/search', [GroupsController::class, 'searchGroupMembers']);
 
     // Leaders
@@ -104,12 +99,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user-role-assignments', [UserRoleController::class, 'index']);
     Route::put('/leadership-roles/{id}', [LeadershipRoleController::class, 'update']);
     Route::delete('/leadership-roles/{id}', [LeadershipRoleController::class, 'destroy']);
-    Route::put('/{id}/roles', [LeaderController::class, 'updateRole']); 
-      // Update all leader details + roles
+    Route::put('/{id}/roles', [LeaderController::class, 'updateRole']);
+    // Update all leader details + roles
     Route::put('/leaders/{id}', [LeaderController::class, 'update']);
 
-        // Update only roles
-        Route::put('/leaders/{id}/roles', [LeaderController::class, 'updateRole']);
+    // Update only roles
+    Route::put('/leaders/{id}/roles', [LeaderController::class, 'updateRole']);
 
     // Events
     Route::get('/events/past', [EventController::class, 'pastEvents']);
@@ -120,8 +115,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Children
     Route::apiResource('children', ChildrenController::class);
-
-
 
     // Contributions
     Route::get('/contributions', [ContributionController::class, 'index']);
@@ -155,7 +148,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/groups/{group}/add-member', [GroupsController::class, 'addMember']);
     Route::post('/groups/{group}/remove-member', [GroupsController::class, 'removeMember']);
 });
-
 
 // Test env
 Route::get('/test-env', function () {

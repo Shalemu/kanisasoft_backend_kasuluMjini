@@ -51,6 +51,7 @@ class ServiceEventController extends Controller
         foreach ($aliases as $alias) {
             if ($request->filled($alias)) {
                 $request->merge([$target => $request->input($alias)]);
+
                 return;
             }
         }
@@ -61,6 +62,15 @@ class ServiceEventController extends Controller
      */
     public function index(Request $request)
     {
+        $request->validate([
+            'search' => 'nullable|string|max:255',
+            'category' => 'nullable|string|max:100',
+            'date' => 'nullable|date',
+            'filter_date' => 'nullable|date',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+        ]);
+
         $query = ServiceEvent::query();
 
         if ($request->filled('search')) {
@@ -68,8 +78,8 @@ class ServiceEventController extends Controller
 
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('service_name', 'like', "%{$search}%")
-                  ->orWhere('preacher', 'like', "%{$search}%");
+                    ->orWhere('service_name', 'like', "%{$search}%")
+                    ->orWhere('preacher', 'like', "%{$search}%");
             });
         }
 

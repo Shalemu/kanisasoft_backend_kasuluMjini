@@ -618,6 +618,22 @@ class AuthController extends Controller
         }
     }
 
+    public function pendingRegistrations(Request $request)
+    {
+        $limit = min(max((int) $request->input('limit', 10), 1), 100);
+        $query = Member::query()
+            ->with('user')
+            ->where('membership_status', 'pending')
+            ->where('is_authorized', false)
+            ->whereHas('user', fn ($query) => $query->whereNull('role'));
+
+        return response()->json([
+            'status' => 'success',
+            'count' => (clone $query)->count(),
+            'pending_registrations' => $query->latest()->limit($limit)->get(),
+        ]);
+    }
+
     public function forgotPassword(Request $request)
     {
         $request->validate([
