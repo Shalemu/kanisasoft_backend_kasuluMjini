@@ -629,13 +629,32 @@ public function stats()
     /**
      * Generate unique membership number
      */
-    private function generateMembershipNumber()
-    {
-        $lastNumber = Member::max(DB::raw('CAST(membership_number AS UNSIGNED)'));
-        $newNumber = $lastNumber ? $lastNumber + 1 : 1;
+    // private function generateMembershipNumber()
+    // {
+    //     $lastNumber = Member::max(DB::raw('CAST(membership_number AS UNSIGNED)'));
+    //     $newNumber = $lastNumber ? $lastNumber + 1 : 1;
 
-        return str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+    //     return str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+    // }
+
+    private function generateMembershipNumber()
+{
+    $numbers = Member::orderByRaw('CAST(membership_number AS UNSIGNED)')
+        ->pluck('membership_number')
+        ->map(fn ($n) => (int) $n)
+        ->toArray();
+
+    $expected = 1;
+
+    foreach ($numbers as $number) {
+        if ($number != $expected) {
+            break;
+        }
+        $expected++;
     }
+
+    return str_pad($expected, 4, '0', STR_PAD_LEFT);
+}
 
     /**
      * Notify member via SMS and Email
@@ -655,16 +674,16 @@ public function stats()
     $fullName = $member->full_name;
 
     // Send SMS
-    if ($member->phone_number) {
-        try {
-            $text = "Habari {$fullName}, usajili wako  FPCT KASULU MJINI  umekamilika. "
-                  . "Namba yako ya ushirika ni: {$membershipNumber}. Karibu  FPCT KASULU MJINI .";
+    // if ($member->phone_number) {
+    //     try {
+    //         $text = "Habari {$fullName}, usajili wako  FPCT KASULU MJINI  umekamilika. "
+    //               . "Namba yako ya ushirika ni: {$membershipNumber}. Karibu  FPCT KASULU MJINI .";
 
-            app(SMSService::class)->sendSMS($member->phone_number, $text);
-        } catch (\Throwable $e) {
-            Log::error("SMS sending failed: " . $e->getMessage());
-        }
-    }
+    //         app(SMSService::class)->sendSMS($member->phone_number, $text);
+    //     } catch (\Throwable $e) {
+    //         Log::error("SMS sending failed: " . $e->getMessage());
+    //     }
+    // }
 
     // Send Email
     if ($member->email) {
