@@ -50,6 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Members
     Route::get('/members/stats', [MembersController::class, 'stats']);
     Route::get('/members/reports', [MembersController::class, 'report']);
+    Route::post('/admin/members', [MembersController::class, 'store']);
     Route::get('/member-marriages', [MemberMarriageController::class, 'index']);
     Route::post('/member-marriages', [MemberMarriageController::class, 'store']);
     Route::delete('/member-marriages/{memberMarriage}', [MemberMarriageController::class, 'destroy']);
@@ -119,6 +120,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Contributions
     Route::get('/contributions', [ContributionController::class, 'index']);
     Route::post('/contributions', [ContributionController::class, 'store']);
+    Route::get('/contributions/{id}', [ContributionController::class, 'show']);
+    Route::put('/contributions/{id}', [ContributionController::class, 'update']);
+    Route::patch('/contributions/{id}', [ContributionController::class, 'update']);
     Route::delete('/contributions/{id}', [ContributionController::class, 'destroy']);
     Route::get('/contributors', [ContributionController::class, 'contributors']);
 

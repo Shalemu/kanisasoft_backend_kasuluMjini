@@ -7,9 +7,8 @@ use App\Models\User;
 use App\Models\Member;
 use App\Models\Group;
 use App\Models\SmsLog;
+use App\Services\SMSService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -33,7 +32,7 @@ class SMSController extends Controller
         $type = $request->type;
         $receiver = $request->receiver;
         $message = $request->message;
-        $directPhone = $request->phone;
+        $directPhone = $request->phone ? $this->formatTanzaniaPhone($request->phone) : null;
         $directEmail = $request->email;
         $name = $request->name ?? 'Recipient';
         $sendEmail = $request->send_email ?? false;
@@ -42,6 +41,17 @@ class SMSController extends Controller
 
         // Direct send
         if ($directPhone || $directEmail) {
+            if ($directPhone && ! $this->isValidTanzaniaPhone($directPhone)) {
+                $this->logSmsAttempt($directPhone, $receiver ?? $name, $type ?? 'direct', $message, 'Failed', [
+                    'error' => 'Invalid phone number. Use 0XXXXXXXXX, 255XXXXXXXXX, or +255XXXXXXXXX.',
+                ]);
+
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid phone number. Use 0XXXXXXXXX, 255XXXXXXXXX, or +255XXXXXXXXX.',
+                ], 422);
+            }
+
             $recipients->push((object)[
                 'phone' => $directPhone,
                 'email' => $directEmail,
@@ -63,13 +73,17 @@ class SMSController extends Controller
                     break;
                 case 'group':
                     $group = Group::where('name', $receiver)->first();
-                    if ($group) $recipients = $group->members()->get();
+                    if ($group) {
+                        $recipients = $group->members()->get();
+                    }
                     break;
                 case 'individual':
                     $user = User::where('full_name', $receiver)
                         ->orWhere('phone', $receiver)
                         ->first();
-                    if ($user) $recipients = collect([$user]);
+                    if ($user) {
+                        $recipients = collect([$user]);
+                    }
                     break;
                 default:
                     return response()->json([
@@ -88,6 +102,10 @@ class SMSController extends Controller
 
         $smsResults = [];
         $emailResults = [];
+        $sentCount = 0;
+        $failedCount = 0;
+        $invalidCount = 0;
+        $smsService = app(SMSService::class);
 
         foreach ($recipients as $recipient) {
             $recipientName = $recipient->name ?? $recipient->full_name ?? 'Recipient';
@@ -96,48 +114,40 @@ class SMSController extends Controller
 
             // Send SMS
             if ($recipientPhone) {
-                try {
-                    // Format phone: take last 9 digits + 255 prefix
-                    $num = preg_replace('/\D/', '', $recipientPhone);
-                    $lastNine = substr($num, -9);
-                    $formattedPhone = '255' . $lastNine;
-
-                    // URL encode message
-                    $msgEncoded = urlencode($message);
-
-                    // Build GET URL
-                    $url = "https://mshastra.com/sendurl.aspx?"
-                        . "user=" . config('services.mshastra.user')
-                        . "&pwd=" . config('services.mshastra.password')
-                        . "&senderid=" . config('services.mshastra.sender')
-                        . "&mobileno=" . $formattedPhone
-                        . "&msgtext=" . $msgEncoded
-                        . "&CountryCode=255";
-
-                    $response = Http::get($url);
-                    $body = $response->body();
-
-                    if (stripos($body, 'success') !== false || stripos($body, 'Sent') !== false) {
-                        $smsStatus = 'Sent';
-                    } else {
-                        $smsStatus = 'Failed: ' . $body;
-                    }
-
-                    $smsResults[$recipientName] = $smsStatus;
-
-                    // Log SMS
-                    SmsLog::create([
-                        'recipient' => $formattedPhone,
-                        'receiver' => $receiver ?? $recipientName,
-                        'type' => $type ?? 'direct',
-                        'message' => $message,
-                        'status' => $smsStatus,
-                        'response' => $body,
+                $formattedPhone = $this->formatTanzaniaPhone($recipientPhone);
+                if (! $this->isValidTanzaniaPhone($formattedPhone)) {
+                    $invalidCount++;
+                    $failedCount++;
+                    $smsResults[$recipientName] = 'Failed: Invalid phone number';
+                    $this->logSmsAttempt($recipientPhone, $receiver ?? $recipientName, $type ?? 'direct', $message, 'Failed', [
+                        'error' => 'Invalid phone number',
+                        'formatted_phone' => $formattedPhone,
                     ]);
 
+                    continue;
+                }
+
+                try {
+                    $result = $smsService->sendSMS($formattedPhone, $message);
+                    $smsStatus = $result['status'] ? 'Sent' : 'Failed';
+
+                    if ($result['status']) {
+                        $sentCount++;
+                        $smsResults[$recipientName] = 'Sent';
+                    } else {
+                        $failedCount++;
+                        $smsResults[$recipientName] = 'Failed: '.($result['error_type'] ?? 'SMS provider error');
+                    }
+
+                    $this->logSmsAttempt($formattedPhone, $receiver ?? $recipientName, $type ?? 'direct', $message, $smsStatus, $result);
+
                 } catch (\Exception $e) {
-                    Log::error("SMS failed for {$recipientPhone}: " . $e->getMessage());
-                    $smsResults[$recipientName] = 'Failed: ' . $e->getMessage();
+                    $failedCount++;
+                    Log::error("SMS failed for {$recipientPhone}: ".$e->getMessage());
+                    $smsResults[$recipientName] = 'Failed: '.$e->getMessage();
+                    $this->logSmsAttempt($formattedPhone, $receiver ?? $recipientName, $type ?? 'direct', $message, 'Failed', [
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
@@ -151,10 +161,6 @@ class SMSController extends Controller
                     $membershipNumber = 'N/A';
 
                     if ($member) {
-                        if (!$member->membership_number) {
-                            $member->membership_number = $this->generateMembershipNumber();
-                            $member->save();
-                        }
                         $membershipNumber = $member->membership_number;
                     }
 
@@ -171,18 +177,51 @@ class SMSController extends Controller
         }
 
         return response()->json([
-            'status' => 'success',
-            'message' => 'Notifications processed',
+            'status' => $failedCount > 0 ? 'partial_success' : 'success',
+            'message' => $failedCount > 0
+                ? 'Notifications processed with some failures.'
+                : 'Notifications sent successfully.',
+            'summary' => [
+                'recipients' => $recipients->count(),
+                'sms_sent' => $sentCount,
+                'sms_failed' => $failedCount,
+                'invalid_phone_numbers' => $invalidCount,
+            ],
             'sms_results' => $smsResults,
             'email_results' => $emailResults,
         ]);
     }
 
-    private function generateMembershipNumber()
+    private function formatTanzaniaPhone(string $phone): string
     {
-        $lastNumber = Member::max(DB::raw('CAST(membership_number AS UNSIGNED)'));
-        $newNumber = $lastNumber ? $lastNumber + 1 : 1;
-        return str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+        $num = preg_replace('/\D/', '', $phone);
+
+        if (str_starts_with($num, '0')) {
+            return '255'.substr($num, 1);
+        }
+
+        if (strlen($num) === 9) {
+            return '255'.$num;
+        }
+
+        return $num;
+    }
+
+    private function isValidTanzaniaPhone(?string $phone): bool
+    {
+        return is_string($phone) && preg_match('/^255[0-9]{9}$/', $phone) === 1;
+    }
+
+    private function logSmsAttempt(string $recipient, string $receiver, string $type, string $message, string $status, array $response = []): void
+    {
+        SmsLog::create([
+            'recipient' => $recipient,
+            'receiver' => $receiver,
+            'type' => $type,
+            'message' => $message,
+            'status' => $status,
+            'response' => $response,
+        ]);
     }
 
     public function logs()

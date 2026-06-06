@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Mail\MemberAuthorizedMail;
+use App\Models\Contribution;
 use App\Models\DeletedMember;
 use App\Models\Guest;
 use App\Models\LeadershipRole;
@@ -48,14 +49,46 @@ class MembersController extends Controller
             ->orderBy('id')
             ->get();
 
+        $statusCounts = $members->groupBy(fn ($member) => $member->membership_status ?? 'unknown')
+            ->map->count();
+        $genderCounts = $members->groupBy(fn ($member) => $member->gender ?? 'unknown')
+            ->map->count();
+        $zoneCounts = $members->groupBy(fn ($member) => $member->residential_zone ?? 'Haijajazwa')
+            ->map->count();
+
         return response()->json([
             'status' => 'success',
-            'total' => $members->count(),
             'filters' => $request->only([
                 'marital_status', 'education_level', 'birth_month', 'birthdays_this_month',
                 'gender', 'zone', 'residential_zone', 'membership_status',
-                'from_date', 'to_date', 'date_from', 'date_to',
+                'from_date', 'to_date', 'date_from', 'date_to', 'search',
             ]),
+            'summary' => [
+                'total_members' => $members->count(),
+                'active_members' => $statusCounts->get('active', 0),
+                'pending_members' => $statusCounts->get('pending', 0),
+                'deactivated_members' => $members->whereNotIn('membership_status', ['active', 'pending', 'rejected'])->count(),
+                'by_status' => $statusCounts,
+                'by_gender' => $genderCounts,
+                'by_zone' => $zoneCounts,
+            ],
+            'total' => $members->count(),
+            'export' => [
+                'columns' => [
+                    'membership_number', 'full_name', 'gender', 'phone_number', 'email',
+                    'residential_zone', 'membership_status', 'membership_start_date',
+                ],
+                'rows' => $members->map(fn ($member) => [
+                    'membership_number' => $member->membership_number,
+                    'full_name' => $member->full_name,
+                    'gender' => $member->gender,
+                    'phone_number' => $member->phone_number,
+                    'email' => $member->email,
+                    'residential_zone' => $member->residential_zone,
+                    'membership_status' => $member->membership_status,
+                    'membership_start_date' => optional($member->membership_start_date)->format('Y-m-d'),
+                ]),
+            ],
             'members' => $members,
         ]);
     }
@@ -135,13 +168,22 @@ class MembersController extends Controller
      */
     public function show(int $id)
     {
-        $member = Member::with('user')->find($id);
+        $member = Member::with([
+            'user',
+            'groups:id,name,whatsapp_link',
+            'marriageAsHusband.wife:id,full_name,membership_number',
+            'marriageAsWife.husband:id,full_name,membership_number',
+        ])->find($id);
 
         if (! $member) {
             return response()->json(['status' => 'error', 'message' => 'Member not found'], 404);
         }
 
-        return response()->json(['status' => 'success', 'member' => $member]);
+        return response()->json([
+            'status' => 'success',
+            'member' => $member,
+            'edit_data' => $member->toArray(),
+        ]);
     }
 
     /**
@@ -155,13 +197,17 @@ class MembersController extends Controller
                 'Mwanamke' => 'F',
                 default => $request->gender,
             },
+            'phone_number' => $request->phone_number
+                ? $this->formatTanzaniaPhone($request->phone_number)
+                : $request->phone_number,
+            'number_of_children' => $request->input('number_of_children', $request->input('children_count')),
         ]);
 
-        if ($request->marital_status !== 'Ndoa') {
+        if (! in_array($request->marital_status, ['Ndoa', 'Ameoa', 'Ameolewa'], true)) {
             $request->merge(['spouse_name' => null]);
         }
 
-        $zoneValues = ['MURUBOMBO', 'MURUSI B', 'KIGANAMO', 'MURUSI A', 'KUMUNYIKA B', 'KAGUNGA C', 'KUMUNYIKA A', 'KAGANGA B', 'MURUBONA A', 'KAGUNGA A'];
+        $zoneValues = ['MURUBOMBO', 'MURUSI B', 'KIGANAMO', 'MURUSI A', 'KUMUNYIKA B', 'KAGUNGA C', 'KUMUNYIKA A', 'KAGANGA B', 'KAGUNGA B', 'MURUBONA A', 'MURUBONA B', 'KAGUNGA A'];
 
         $validator = Validator::make($request->all(), [
             'full_name' => 'required|string|max:255',
@@ -171,15 +217,17 @@ class MembersController extends Controller
             'birth_region' => 'nullable|string|max:255',
             'birth_ward' => 'nullable|string|max:255',
             'birth_street' => 'nullable|string|max:255',
-            'marital_status' => 'nullable|in:Ndoa,Bila ndoa',
+            'marital_status' => 'nullable|in:Ndoa,Bila ndoa,Ameoa,Ameolewa,Hajaoa,Hajaolewa,Mjane,Mgane',
             'marriage_type' => 'nullable|in:Kikristo,Kiserikali,Kienyeji',
-            'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ndoa',
+            'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ndoa,Ameoa,Ameolewa',
             'number_of_children' => 'nullable|integer|min:0',
             'residential_zone' => ['nullable', Rule::in($zoneValues)],
             'residential_ward' => 'nullable|string|max:255',
             'residential_street' => 'nullable|string|max:255',
-            'phone_number' => 'nullable|string|max:20|unique:users,phone',
-            'email' => 'nullable|email|max:255|unique:users,email',
+            'phone_number' => ['required', 'regex:/^255[0-9]{9}$/', 'unique:users,phone'],
+            'whatsapp_number' => ['nullable', 'regex:/^(0[0-9]{9}|255[0-9]{9})$/'],
+            'email' => 'required|email|max:255|unique:users,email',
+            'password' => 'nullable|string|min:6|confirmed',
             'has_disability' => 'nullable|boolean',
             'disability_description' => 'nullable|string|max:500|required_if:has_disability,true,1',
             'occupation' => 'required|string',
@@ -204,7 +252,7 @@ class MembersController extends Controller
                 'marital_status' => $request->marital_status,
                 'marriage_type' => $request->marriage_type,
                 'spouse_name' => $request->spouse_name,
-                'children_count' => $request->number_of_children,
+                'children_count' => $request->number_of_children ?? 0,
                 'zone' => $request->residential_zone,
                 'residential_ward' => $request->residential_ward,
                 'residential_street' => $request->residential_street,
@@ -213,7 +261,7 @@ class MembersController extends Controller
                 'email' => $request->email,
                 'has_disability' => $request->has_disability ?? false,
                 'disability_description' => $request->disability_description,
-                'password' => Hash::make('defaultpassword'),
+                'password' => Hash::make($request->password ?? Str::random(12)),
                 'role' => 'mshirika',
             ]);
 
@@ -278,32 +326,22 @@ class MembersController extends Controller
     {
         $user = $member->user;
 
-        $user = $member->user;
-
-        // Block editing if membership number not set
-        if (empty($member->membership_number)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Huyu mshirika bado hajaidhinishwa, hivyo huwezi kumhariri.',
-            ], 422);
-        }
-
         /*
         |--------------------------------------------------------------------------
         | Normalize values
         |--------------------------------------------------------------------------
         */
 
-        $gender = match ($request->gender) {
+        $gender = match ($request->gender ?? $member->gender) {
             'Mwanaume' => 'M',
             'Mwanamke' => 'F',
-            default => $request->gender,
+            default => $request->gender ?? $member->gender,
         };
 
-        $maritalStatus = match ($request->marital_status) {
+        $maritalStatus = match ($request->marital_status ?? $member->marital_status) {
             'Ndoa' => $gender === 'F' ? 'Ameolewa' : 'Ameoa',
             'Bila ndoa' => $gender === 'F' ? 'Hajaolewa' : 'Hajaoa',
-            default => $request->marital_status,
+            default => $request->marital_status ?? $member->marital_status,
         };
 
         $livesAlone = filter_var($request->lives_alone, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
@@ -322,6 +360,31 @@ class MembersController extends Controller
         $formattedPhone = preg_replace('/\D/', '', $request->phone_number ?? '');
         if ($formattedPhone && str_starts_with($formattedPhone, '0')) {
             $formattedPhone = '255'.substr($formattedPhone, 1);
+        }
+
+        if ($request->filled('membership_number')) {
+            $membershipNumberValue = (int) preg_replace('/\D/', '', $request->membership_number);
+            if ($membershipNumberValue <= 0) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Namba ya ushirika si sahihi.',
+                ], 422);
+            }
+
+            $normalizedMembershipNumber = str_pad($membershipNumberValue, 4, '0', STR_PAD_LEFT);
+            $numberExists = Member::where('membership_number', $normalizedMembershipNumber)
+                ->where('membership_status', 'active')
+                ->where('id', '!=', $member->id)
+                ->exists();
+
+            if ($numberExists) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Namba ya ushirika tayari inatumiwa na mshirika mwingine.',
+                ], 422);
+            }
+
+            $request->merge(['membership_number' => $normalizedMembershipNumber]);
         }
 
         try {
@@ -419,6 +482,8 @@ class MembersController extends Controller
                 'baptizer_name' => $request->baptizer_name ?? $member->baptizer_name,
                 'baptizer_title' => $request->baptizer_title ?? $member->baptizer_title,
                 'previous_church' => $request->previous_church ?? $member->previous_church,
+                'previous_church_status' => $request->previous_church_status ?? $member->previous_church_status,
+                'tangu_lini' => $request->tangu_lini ?? $member->tangu_lini,
                 'church_service' => $request->church_service ?? $member->church_service,
                 'service_duration' => $request->service_duration ?? $member->service_duration,
                 'participates_communion' => $request->participates_communion ?? $member->participates_communion,
@@ -525,24 +590,28 @@ class MembersController extends Controller
      */
     public function activate(Member $member)
     {
-        if ($member->membership_status === 'pending') {
+        if ($member->membership_status === 'active') {
             return response()->json([
                 'status' => 'info',
-                'message' => 'Member already pending approval.',
+                'message' => 'Member already active.',
+                'member' => $member,
             ]);
         }
 
         $member->update([
-            'membership_status' => 'pending', // set to pending instead of active
+            'membership_status' => 'active',
             'deactivation_reason' => null,
-            // Do NOT assign membership number here
+            'membership_number' => $member->membership_number ?? $this->generateMembershipNumber(),
+            'membership_start_date' => $member->membership_start_date ?? now()->toDateString(),
+            'is_authorized' => true,
         ]);
 
         $this->notifyMember($member);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Member status set to pending. Notifications sent.',
+            'message' => 'Member activated successfully. Notifications sent.',
+            'member' => $member->fresh()->load('user'),
         ]);
     }
 
@@ -556,37 +625,85 @@ class MembersController extends Controller
             'Ametegwa ushirika' => 'detained',
             'Amefariki' => 'deceased',
             'Amepotea' => 'lost',
-            'Amejisajiri kimakosa' => 'lost',
+            'Amejisajiri kimakosa' => 'deactivated',
         ];
 
         $request->validate([
-            'reason' => ['required', Rule::in(array_keys($reasons))],
+            'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $status = $reasons[$request->reason];
+        $reason = $request->input('reason', 'Deactivated by admin');
+        $status = $reasons[$reason] ?? 'deactivated';
 
         $member->update([
             'membership_status' => $status,
-            'deactivation_reason' => $request->reason,
+            'deactivation_reason' => $reason,
+            'is_authorized' => false,
+            'membership_number' => null,
         ]);
 
         return response()->json([
             'status' => 'success',
             'message' => 'Member deactivated successfully.',
-            'member' => $member,
+            'member' => $member->fresh()->load('user'),
+            'membership_status' => $status,
         ]);
     }
 
     public function stats()
     {
         $guestCount = Guest::count();
+        $totalContributions = (float) Contribution::sum('amount');
+        $pendingRegistrations = Member::where('membership_status', 'pending')
+            ->where('is_authorized', false)
+            ->count();
 
         return response()->json([
             'status' => 'success',
             'total_members' => Member::where('membership_status', 'active')->count(),
             'total_visitors' => $guestCount,
             'total_guests' => $guestCount,
+            'total_contributions' => $totalContributions,
+            'pending_registrations' => $pendingRegistrations,
+            'notification_count' => $pendingRegistrations,
+            'modules' => [
+                [
+                    'key' => 'members',
+                    'label' => 'Washirika',
+                    'icon' => 'users',
+                    'total' => Member::where('membership_status', 'active')->count(),
+                ],
+                [
+                    'key' => 'visitors',
+                    'label' => 'Wageni',
+                    'icon' => 'user-plus',
+                    'total' => $guestCount,
+                ],
+                [
+                    'key' => 'reports',
+                    'label' => 'Ripoti',
+                    'icon' => 'file-text',
+                    'total' => null,
+                ],
+                [
+                    'key' => 'notifications',
+                    'label' => 'Maombi Mapya',
+                    'icon' => 'bell',
+                    'total' => $pendingRegistrations,
+                ],
+                [
+                    'key' => 'contributions',
+                    'label' => 'Michango',
+                    'icon' => 'wallet',
+                    'total' => $totalContributions,
+                ],
+            ],
         ]);
+    }
+
+    public function destroy(Member $member)
+    {
+        return $this->deactivate(new Request(['reason' => 'Deactivated by admin']), $member);
     }
 
     /**
@@ -645,7 +762,7 @@ class MembersController extends Controller
             $user = $member->user;
 
             DeletedMember::create([
-                'user_id' => $user->id,
+                'user_id' => $user?->id,
                 'full_name' => $member->full_name,
                 'email' => $member->email,
                 'phone' => $member->phone_number,
@@ -656,12 +773,21 @@ class MembersController extends Controller
                 'deleted_at' => now(),
             ]);
 
-            $member->delete();
-            $user->delete();
+            $member->update([
+                'membership_status' => 'deactivated',
+                'deactivation_reason' => 'deleted manually',
+                'is_authorized' => false,
+                'membership_number' => null,
+            ]);
+
+            if ($user) {
+                $user->update(['role' => null]);
+            }
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Member and user deleted successfully',
+                'message' => 'Member deactivated successfully',
+                'member' => $member->fresh()->load('user'),
             ]);
         } catch (\Throwable $e) {
             return response()->json([
@@ -723,6 +849,7 @@ class MembersController extends Controller
     {
         $usedNumbers = Member::query()
             ->whereNotNull('membership_number')
+            ->where('membership_status', 'active')
             ->lockForUpdate()
             ->pluck('membership_number')
             ->map(fn ($number) => (int) $number)
@@ -745,6 +872,21 @@ class MembersController extends Controller
         }
 
         return str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function formatTanzaniaPhone(string $phone): string
+    {
+        $num = preg_replace('/\D/', '', $phone);
+
+        if (str_starts_with($num, '0')) {
+            return '255'.substr($num, 1);
+        }
+
+        if (strlen($num) === 9) {
+            return '255'.$num;
+        }
+
+        return $num;
     }
 
     /**

@@ -75,7 +75,10 @@ class GroupsController extends Controller
      */
     public function show(int $id)
     {
-        $group = Group::with(['leader', 'members'])->find($id);
+        $group = Group::with([
+            'leader:id,full_name,membership_number,phone_number,email,gender',
+            'members:id,full_name,membership_number,phone_number,email,gender,residential_zone,membership_status',
+        ])->withCount('members')->find($id);
 
         if (!$group) {
             return response()->json([
@@ -86,7 +89,18 @@ class GroupsController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'group' => $group,
+            'group' => [
+                'id' => $group->id,
+                'name' => $group->name,
+                'leader_id' => $group->leader_id,
+                'whatsapp_link' => $group->whatsapp_link,
+                'created_at' => $group->created_at,
+                'updated_at' => $group->updated_at,
+            ],
+            'members' => $group->members,
+            'leaders' => $group->leader ? [$group->leader] : [],
+            'leader' => $group->leader,
+            'total_members' => $group->members_count,
         ]);
     }
 

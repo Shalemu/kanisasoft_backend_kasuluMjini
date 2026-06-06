@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Group;
+use App\Models\Contribution;
 use App\Models\Guest;
 use App\Models\Member;
 use App\Models\ServiceEvent;
@@ -27,11 +28,22 @@ class DemoFeedbackApiTest extends TestCase
     {
         Guest::create(['full_name' => 'One', 'church_origin' => 'RGCM']);
         Guest::create(['full_name' => 'Two', 'church_origin' => 'RGCM']);
+        Contribution::create([
+            'date' => '2026-06-01',
+            'type' => 'Sadaka',
+            'amount' => 12500,
+            'method' => 'Cash',
+            'giver_name' => 'Guest Giver',
+        ]);
 
         $this->getJson('/api/members/stats')
             ->assertOk()
             ->assertJsonPath('total_visitors', 2)
-            ->assertJsonPath('total_guests', 2);
+            ->assertJsonPath('total_guests', 2)
+            ->assertJsonPath('total_contributions', 12500)
+            ->assertJsonPath('modules.4.key', 'contributions')
+            ->assertJsonPath('modules.4.label', 'Michango')
+            ->assertJsonPath('modules.4.icon', 'wallet');
     }
 
     public function test_members_are_numerically_ordered_and_report_filters_work(): void
@@ -49,6 +61,8 @@ class DemoFeedbackApiTest extends TestCase
         $this->getJson('/api/members/reports?gender=F&education_level=Degree')
             ->assertOk()
             ->assertJsonPath('total', 1)
+            ->assertJsonPath('summary.total_members', 1)
+            ->assertJsonPath('export.rows.0.gender', 'F')
             ->assertJsonCount(1, 'members');
     }
 
@@ -129,6 +143,11 @@ class DemoFeedbackApiTest extends TestCase
             ->assertJsonCount(1, 'guests')
             ->assertJsonPath('guests.0.full_name', 'May');
 
+        $this->getJson('/api/guests?start_date=2026-05-01&end_date=2026-05-31')
+            ->assertOk()
+            ->assertJsonCount(1, 'guests')
+            ->assertJsonPath('guests.0.full_name', 'May');
+
         $this->patchJson("/api/guests/{$june->id}", ['other' => null, 'phone' => '255700000000'])
             ->assertOk()
             ->assertJsonPath('guest.phone', '255700000000');
@@ -166,6 +185,128 @@ class DemoFeedbackApiTest extends TestCase
         $this->getJson('/api/groups')
             ->assertOk()
             ->assertJsonPath('groups.0.members_count', 2);
+    }
+
+    public function test_group_details_include_members_leaders_and_total(): void
+    {
+        $leader = $this->createMember(['membership_number' => '0005']);
+        $member = $this->createMember(['membership_number' => '0006']);
+        $group = Group::create(['name' => 'Youth', 'leader_id' => $leader->id]);
+        $group->members()->attach([$leader->id, $member->id]);
+
+        $this->getJson("/api/groups/{$group->id}")
+            ->assertOk()
+            ->assertJsonPath('group.name', 'Youth')
+            ->assertJsonPath('leaders.0.id', $leader->id)
+            ->assertJsonPath('total_members', 2)
+            ->assertJsonCount(2, 'members');
+    }
+
+    public function test_member_delete_route_soft_deactivates_member(): void
+    {
+        $member = $this->createMember(['membership_status' => 'active']);
+
+        $this->deleteJson("/api/members/{$member->id}")
+            ->assertOk()
+            ->assertJsonPath('membership_status', 'deactivated');
+
+        $this->assertDatabaseHas('members', [
+            'id' => $member->id,
+            'membership_status' => 'deactivated',
+            'membership_number' => null,
+        ]);
+    }
+
+    public function test_deactivated_membership_number_is_reused_on_next_approval(): void
+    {
+        $first = $this->createMember(['membership_number' => '0001']);
+        $this->createMember(['membership_number' => '0002']);
+
+        $this->deleteJson("/api/members/{$first->id}")->assertOk();
+
+        $pendingUser = User::factory()->create(['role' => null]);
+        $this->createMember([
+            'user_id' => $pendingUser->id,
+            'membership_number' => null,
+            'membership_status' => 'pending',
+            'is_authorized' => false,
+            'phone_number' => null,
+            'email' => null,
+        ]);
+
+        $this->postJson('/api/authorize-user', ['user_id' => $pendingUser->id])
+            ->assertOk()
+            ->assertJsonPath('member.membership_number', '0001');
+    }
+
+    public function test_admin_can_create_member_with_registration_validation(): void
+    {
+        $response = $this->postJson('/api/admin/members', [
+            'full_name' => 'Admin Created',
+            'gender' => 'M',
+            'birth_date' => '1990-01-01',
+            'birth_place' => 'Kigoma',
+            'marital_status' => 'Bila ndoa',
+            'residential_zone' => 'MURUBOMBO',
+            'phone_number' => '0712345678',
+            'email' => 'admin-created@example.com',
+            'occupation' => 'Teacher',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('member.membership_status', 'pending')
+            ->assertJsonPath('user.phone', '255712345678');
+    }
+
+    public function test_contribution_reports_include_totals_exports_and_edit_payload(): void
+    {
+        $first = Contribution::create([
+            'date' => '2026-05-10',
+            'type' => 'Fungu la Kumi',
+            'amount' => 10000,
+            'method' => 'Cash',
+            'giver_name' => 'First Giver',
+        ]);
+        Contribution::create([
+            'date' => '2026-06-10',
+            'type' => 'Sadaka',
+            'amount' => 5000,
+            'method' => 'Mobile',
+            'giver_name' => 'Second Giver',
+        ]);
+
+        $this->getJson('/api/contributions?from_date=2026-05-01&to_date=2026-05-31')
+            ->assertOk()
+            ->assertJsonPath('summary.total_contributions', 10000)
+            ->assertJsonPath('summary.total_records', 1)
+            ->assertJsonPath('export.rows.0.giver', 'First Giver');
+
+        $this->getJson("/api/contributions/{$first->id}")
+            ->assertOk()
+            ->assertJsonPath('edit_data.giver_name', 'First Giver');
+
+        $this->patchJson("/api/contributions/{$first->id}", ['amount' => 12000])
+            ->assertOk()
+            ->assertJsonPath('contribution.amount', 12000);
+    }
+
+    public function test_invalid_sms_phone_returns_clear_error_and_logs_failure(): void
+    {
+        $this->postJson('/api/send-sms', [
+            'phone' => '12345',
+            'message' => 'Test message',
+            'name' => 'Bad Phone',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('status', 'error');
+
+        $this->assertDatabaseHas('sms_logs', [
+            'recipient' => '12345',
+            'status' => 'Failed',
+        ]);
     }
 
     private function createMember(array $attributes = []): Member

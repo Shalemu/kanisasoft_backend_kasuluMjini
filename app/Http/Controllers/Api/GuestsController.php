@@ -15,6 +15,8 @@ class GuestsController extends Controller
         $request->validate([
             'date' => 'nullable|date',
             'filter_date' => 'nullable|date',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'from_date' => 'nullable|date',
             'to_date' => 'nullable|date|after_or_equal:from_date',
             'search' => 'nullable|string|max:255',
@@ -27,12 +29,15 @@ class GuestsController extends Controller
             $query->whereDate('visit_date', $selectedDate);
         }
 
-        if ($request->filled('from_date')) {
-            $query->whereDate('visit_date', '>=', $request->from_date);
+        $fromDate = $request->input('from_date', $request->input('start_date'));
+        $toDate = $request->input('to_date', $request->input('end_date'));
+
+        if (filled($fromDate)) {
+            $query->whereDate('visit_date', '>=', $fromDate);
         }
 
-        if ($request->filled('to_date')) {
-            $query->whereDate('visit_date', '<=', $request->to_date);
+        if (filled($toDate)) {
+            $query->whereDate('visit_date', '<=', $toDate);
         }
 
         if ($request->filled('search')) {
@@ -58,6 +63,14 @@ class GuestsController extends Controller
                 'total_joining' => (clone $summaryQuery)->where('joining', true)->count(),
                 'total_travel' => (clone $summaryQuery)->where('travel', true)->count(),
             ],
+            'filters' => [
+                'date' => $selectedDate,
+                'from_date' => $fromDate,
+                'to_date' => $toDate,
+                'start_date' => $request->input('start_date'),
+                'end_date' => $request->input('end_date'),
+                'search' => $request->input('search'),
+            ],
             'guests' => $guests,
         ]);
     }
@@ -67,6 +80,8 @@ class GuestsController extends Controller
         $request->validate([
             'date' => 'nullable|date',
             'filter_date' => 'nullable|date',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'from_date' => 'nullable|date',
             'to_date' => 'nullable|date|after_or_equal:from_date',
         ]);
@@ -78,12 +93,15 @@ class GuestsController extends Controller
             $query->whereDate('visit_date', $selectedDate);
         }
 
-        if ($request->filled('from_date')) {
-            $query->whereDate('visit_date', '>=', $request->from_date);
+        $fromDate = $request->input('from_date', $request->input('start_date'));
+        $toDate = $request->input('to_date', $request->input('end_date'));
+
+        if (filled($fromDate)) {
+            $query->whereDate('visit_date', '>=', $fromDate);
         }
 
-        if ($request->filled('to_date')) {
-            $query->whereDate('visit_date', '<=', $request->to_date);
+        if (filled($toDate)) {
+            $query->whereDate('visit_date', '<=', $toDate);
         }
 
         $startOfThisMonth = now()->startOfMonth()->toDateString();
