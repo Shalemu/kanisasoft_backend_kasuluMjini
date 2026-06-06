@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Contribution;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 
 class ContributionController extends Controller
 {
@@ -15,12 +14,16 @@ class ContributionController extends Controller
     public function index(Request $request)
     {
         $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'from_date' => 'nullable|date',
             'to_date' => 'nullable|date|after_or_equal:from_date',
             'date_from' => 'nullable|date',
             'date_to' => 'nullable|date|after_or_equal:date_from',
             'type' => 'nullable|string|max:255',
+            'category' => 'nullable|string|max:255',
             'method' => 'nullable|string|max:255',
+            'payment_method' => 'nullable|string|max:255',
             'user_id' => 'nullable|exists:users,id',
             'search' => 'nullable|string|max:255',
         ]);
@@ -46,10 +49,14 @@ class ContributionController extends Controller
                 ]),
             ],
             'filters' => $request->only([
-                'from_date', 'to_date', 'date_from', 'date_to', 'type', 'method', 'user_id', 'search',
+                'start_date', 'end_date', 'from_date', 'to_date', 'date_from', 'date_to',
+                'type', 'category', 'method', 'payment_method', 'user_id', 'search',
             ]),
             'export' => [
-                'columns' => ['date', 'type', 'amount', 'method', 'giver', 'user_id', 'giver_name'],
+                'columns' => [
+                    'date', 'contribution_date', 'amount', 'type', 'category',
+                    'payment_method', 'donor_name', 'reference', 'notes',
+                ],
                 'rows' => $contributions->map(fn ($c) => $this->formatContribution($c)),
             ],
             'reports' => $contributions->map(fn ($c) => $this->formatContribution($c)),
@@ -62,22 +69,20 @@ class ContributionController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $payload = $this->normalizeContributionPayload($request);
+
+        $validated = validator($payload, [
             'date' => 'required|date',
             'type' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
-            'method' => 'required|string|max:255',
+            'amount' => 'required|numeric|gt:0',
+            'method' => 'nullable|string|max:255',
             'user_id' => 'nullable|exists:users,id',
             'giver_name' => 'nullable|string|max:255',
-        ]);
+            'reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
+        ])->validate();
 
-        // ✅ Fix: avoid undefined array key
-        if (empty(Arr::get($validated, 'user_id')) && empty(Arr::get($validated, 'giver_name'))) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Tafadhali chagua mshirika au andika jina la mtoaji.'
-            ], 422);
-        }
+        $validated['method'] = $validated['method'] ?? 'Cash';
 
         $contribution = Contribution::create($validated)->fresh(['user']);
 
@@ -119,23 +124,18 @@ class ContributionController extends Controller
             ], 404);
         }
 
-        $validated = $request->validate([
+        $payload = $this->normalizeContributionPayload($request);
+
+        $validated = validator($payload, [
             'date' => 'sometimes|required|date',
             'type' => 'sometimes|required|string|max:255',
-            'amount' => 'sometimes|required|numeric|min:0',
-            'method' => 'sometimes|required|string|max:255',
+            'amount' => 'sometimes|required|numeric|gt:0',
+            'method' => 'nullable|string|max:255',
             'user_id' => 'nullable|exists:users,id',
             'giver_name' => 'nullable|string|max:255',
-        ]);
-
-        $userId = Arr::get($validated, 'user_id', $contribution->user_id);
-        $giverName = Arr::get($validated, 'giver_name', $contribution->giver_name);
-        if (empty($userId) && empty($giverName)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Tafadhali chagua mshirika au andika jina la mtoaji.',
-            ], 422);
-        }
+            'reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
+        ])->validate();
 
         $contribution->update($validated);
         $contribution = $contribution->fresh(['user']);
@@ -167,7 +167,7 @@ class ContributionController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Mchango umefutwa vizuri.',
+            'message' => 'Contribution deleted successfully',
         ]);
     }
 
@@ -175,8 +175,8 @@ class ContributionController extends Controller
     {
         $query = Contribution::query();
 
-        $fromDate = $request->input('from_date', $request->input('date_from'));
-        $toDate = $request->input('to_date', $request->input('date_to'));
+        $fromDate = $request->input('start_date', $request->input('from_date', $request->input('date_from')));
+        $toDate = $request->input('end_date', $request->input('to_date', $request->input('date_to')));
 
         if (filled($fromDate)) {
             $query->whereDate('date', '>=', $fromDate);
@@ -186,10 +186,18 @@ class ContributionController extends Controller
             $query->whereDate('date', '<=', $toDate);
         }
 
-        foreach (['type', 'method', 'user_id'] as $field) {
-            if ($request->filled($field)) {
-                $query->where($field, $request->input($field));
-            }
+        $type = $request->input('type', $request->input('category'));
+        if (filled($type)) {
+            $query->where('type', $type);
+        }
+
+        $method = $request->input('payment_method', $request->input('method'));
+        if (filled($method)) {
+            $query->where('method', $method);
+        }
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->input('user_id'));
         }
 
         if ($request->filled('search')) {
@@ -203,17 +211,49 @@ class ContributionController extends Controller
         return $query;
     }
 
+    private function normalizeContributionPayload(Request $request): array
+    {
+        $data = $request->all();
+
+        if ($request->has('date') || $request->has('contribution_date')) {
+            $data['date'] = $request->input('date', $request->input('contribution_date'));
+        }
+
+        if ($request->has('type') || $request->has('category')) {
+            $data['type'] = $request->input('type', $request->input('category'));
+        }
+
+        if ($request->has('payment_method') || $request->has('method')) {
+            $data['method'] = $request->input('payment_method', $request->input('method'));
+        }
+
+        if ($request->has('donor_name') || $request->has('giver_name')) {
+            $data['giver_name'] = $request->input('donor_name', $request->input('giver_name'));
+        }
+
+        return $data;
+    }
+
     private function formatContribution(Contribution $contribution): array
     {
+        $date = optional($contribution->date)->format('Y-m-d');
+        $donorName = $contribution->user?->full_name ?? $contribution->giver_name;
+
         return [
             'id' => $contribution->id,
             'user_id' => $contribution->user_id,
             'giver_name' => $contribution->giver_name,
-            'date' => optional($contribution->date)->format('Y-m-d'),
+            'donor_name' => $donorName,
+            'date' => $date,
+            'contribution_date' => $date,
             'type' => $contribution->type,
+            'category' => $contribution->type,
             'amount' => (float) $contribution->amount,
             'method' => $contribution->method,
-            'giver' => $contribution->user?->full_name ?? $contribution->giver_name,
+            'payment_method' => $contribution->method,
+            'reference' => $contribution->reference,
+            'notes' => $contribution->notes,
+            'giver' => $donorName,
             'created_at' => optional($contribution->created_at)->toISOString(),
             'updated_at' => optional($contribution->updated_at)->toISOString(),
         ];

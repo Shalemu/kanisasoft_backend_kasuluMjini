@@ -293,6 +293,45 @@ class DemoFeedbackApiTest extends TestCase
             ->assertJsonPath('contribution.amount', 12000);
     }
 
+    public function test_contribution_frontend_contract_aliases_work(): void
+    {
+        $response = $this->postJson('/api/contributions', [
+            'contribution_date' => '2026-06-06',
+            'amount' => 50000,
+            'category' => 'Sadaka',
+            'payment_method' => 'Cash',
+            'donor_name' => 'Optional name',
+            'reference' => 'REF-001',
+            'notes' => 'Optional notes',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('contribution.date', '2026-06-06')
+            ->assertJsonPath('contribution.contribution_date', '2026-06-06')
+            ->assertJsonPath('contribution.amount', 50000)
+            ->assertJsonPath('contribution.type', 'Sadaka')
+            ->assertJsonPath('contribution.category', 'Sadaka')
+            ->assertJsonPath('contribution.payment_method', 'Cash')
+            ->assertJsonPath('contribution.donor_name', 'Optional name')
+            ->assertJsonPath('contribution.reference', 'REF-001')
+            ->assertJsonPath('contribution.notes', 'Optional notes');
+
+        $id = $response->json('contribution.id');
+
+        $this->getJson('/api/contributions?start_date=2026-06-01&end_date=2026-06-30&type=Sadaka&payment_method=Cash')
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonCount(1, 'contributions')
+            ->assertJsonPath('contributions.0.id', $id)
+            ->assertJsonPath('contributions.0.donor_name', 'Optional name');
+
+        $this->deleteJson("/api/contributions/{$id}")
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('message', 'Contribution deleted successfully');
+    }
+
     public function test_invalid_sms_phone_returns_clear_error_and_logs_failure(): void
     {
         $this->postJson('/api/send-sms', [

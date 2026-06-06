@@ -14,6 +14,8 @@ class Contribution extends Model
         'method',
         'user_id',
         'giver_name',
+        'reference',
+        'notes',
     ];
 
     protected $casts = [
