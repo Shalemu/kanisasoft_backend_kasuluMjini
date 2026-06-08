@@ -4,12 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Group;
 use App\Models\Contribution;
+use App\Models\Event;
 use App\Models\Guest;
 use App\Models\Member;
 use App\Models\ServiceEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -119,15 +121,82 @@ class DemoFeedbackApiTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('marriage.husband_id', $husband->id)
-            ->assertJsonPath('marriage.wife_id', $wife->id);
+            ->assertJsonPath('marriage.wife_id', $wife->id)
+            ->assertJsonPath('marriage.married_at', '2026-05-01');
 
         $this->getJson('/api/member-marriages')
             ->assertOk()
+            ->assertJsonPath('summary.total_marriages', 1)
             ->assertJsonCount(1, 'marriages');
 
         $this->deleteJson('/api/member-marriages/'.$response->json('marriage.id'))->assertOk();
         $this->assertNull($husband->fresh()->spouse_name);
         $this->assertNull($wife->fresh()->spouse_name);
+    }
+
+    public function test_member_marriage_can_resolve_frontend_user_ids(): void
+    {
+        User::factory()->count(5)->create(['role' => 'mshirika']);
+
+        $husbandUser = User::factory()->create(['role' => 'mshirika']);
+        $wifeUser = User::factory()->create(['role' => 'mshirika']);
+        $husband = $this->createMember([
+            'user_id' => $husbandUser->id,
+            'gender' => 'M',
+        ]);
+        $wife = $this->createMember([
+            'user_id' => $wifeUser->id,
+            'gender' => 'F',
+        ]);
+
+        $this->postJson('/api/member-marriages', [
+            'husband_id' => $husbandUser->id,
+            'wife_id' => $wifeUser->id,
+            'married_at' => '2026-06-08',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('marriage.husband_id', $husband->id)
+            ->assertJsonPath('marriage.wife_id', $wife->id)
+            ->assertJsonPath('marriage.married_at', '2026-06-08');
+
+        $this->assertSame('Ameoa', $husband->fresh()->marital_status);
+        $this->assertSame($husband->full_name, $wife->fresh()->spouse_name);
+    }
+
+    public function test_member_marriage_options_returns_husband_and_wife_selectors(): void
+    {
+        $husband = $this->createMember([
+            'full_name' => 'Husband Member',
+            'gender' => 'M',
+            'membership_number' => '0001',
+        ]);
+        $wife = $this->createMember([
+            'full_name' => 'Wife Member',
+            'gender' => 'F',
+            'membership_number' => '0002',
+        ]);
+
+        $this->getJson('/api/member-marriages/options')
+            ->assertOk()
+            ->assertJsonPath('husbands.0.member_id', $husband->id)
+            ->assertJsonPath('husbands.0.user_id', $husband->user_id)
+            ->assertJsonPath('wives.0.member_id', $wife->id)
+            ->assertJsonPath('wives.0.user_id', $wife->user_id);
+    }
+
+    public function test_marriage_alias_route_and_spouse_name_fallback_work(): void
+    {
+        $member = $this->createMember([
+            'gender' => 'M',
+            'spouse_name' => 'Existing Spouse',
+            'marital_status' => 'Ameoa',
+        ]);
+
+        $this->getJson('/api/marriages')
+            ->assertOk()
+            ->assertJsonPath('source', 'spouse_name')
+            ->assertJsonPath('marriages.0.id', 'inferred-'.$member->id)
+            ->assertJsonPath('marriages.0.spouse_name', 'Existing Spouse');
     }
 
     public function test_guests_return_all_by_default_support_range_and_monthly_stats(): void
@@ -200,6 +269,55 @@ class DemoFeedbackApiTest extends TestCase
             ->assertJsonPath('leaders.0.id', $leader->id)
             ->assertJsonPath('total_members', 2)
             ->assertJsonCount(2, 'members');
+    }
+
+    public function test_announcements_and_events_support_new_crud_contract(): void
+    {
+        $choir = Group::create(['name' => 'Kwaya']);
+        $youth = Group::create(['name' => 'Vijana']);
+
+        $response = $this->postJson('/api/events', [
+            'title' => 'Mkutano Mkuu',
+            'type' => 'Tangazo',
+            'description' => 'Washirika wote wahudhurie.',
+            'start_date' => '2026-06-20',
+            'end_date' => '2026-06-21',
+            'start_time' => '09:30',
+            'location' => 'Ukumbi Mkuu',
+            'audience_group_ids' => [$choir->id, $youth->id],
+        ]);
+
+        $eventId = $response
+            ->assertCreated()
+            ->assertJsonPath('event.title', 'Mkutano Mkuu')
+            ->assertJsonPath('event.type', 'Tangazo')
+            ->assertJsonPath('event.date', '2026-06-20')
+            ->assertJsonPath('event.start_date', '2026-06-20')
+            ->assertJsonPath('event.end_date', '2026-06-21')
+            ->assertJsonPath('event.start_time', '09:30')
+            ->assertJsonPath('event.audience_groups.0.name', 'Kwaya')
+            ->json('event.id');
+
+        $this->getJson('/api/events?scope=all&type=Tangazo')
+            ->assertOk()
+            ->assertJsonPath('label', 'Matangazo & Matukio')
+            ->assertJsonPath('events.0.id', $eventId)
+            ->assertJsonPath('events.0.audience_groups.1.name', 'Vijana');
+
+        $this->patchJson("/api/events/{$eventId}", [
+            'title' => 'Mkutano wa Vijana',
+            'type' => 'Tukio',
+            'group_ids' => [$youth->id],
+        ])
+            ->assertOk()
+            ->assertJsonPath('event.title', 'Mkutano wa Vijana')
+            ->assertJsonPath('event.type', 'Tukio')
+            ->assertJsonPath('event.audience_groups.0.name', 'Vijana');
+
+        $this->deleteJson("/api/events/{$eventId}")
+            ->assertOk();
+
+        $this->assertDatabaseMissing('events', ['id' => $eventId]);
     }
 
     public function test_member_delete_route_soft_deactivates_member(): void
@@ -346,6 +464,223 @@ class DemoFeedbackApiTest extends TestCase
             'recipient' => '12345',
             'status' => 'Failed',
         ]);
+    }
+
+    public function test_sms_can_be_sent_to_mshiriki_by_membership_number(): void
+    {
+        Http::fake([
+            '*' => Http::response('Sent', 200),
+        ]);
+
+        $member = $this->createMember([
+            'full_name' => 'SMS Member',
+            'membership_number' => '0021',
+            'phone_number' => '0712345678',
+            'email' => 'sms-member@example.com',
+        ]);
+
+        $this->postJson('/api/send-sms', [
+            'type' => 'mshiriki',
+            'receiver' => $member->membership_number,
+            'message' => 'Test message',
+        ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('summary.recipients', 1)
+            ->assertJsonPath('summary.sms_sent', 1);
+
+        $this->assertDatabaseHas('sms_logs', [
+            'recipient' => '255712345678',
+            'receiver' => '0021',
+            'type' => 'mshiriki',
+            'status' => 'Sent',
+        ]);
+    }
+
+    public function test_sms_can_resolve_member_id_without_type(): void
+    {
+        Http::fake([
+            '*' => Http::response('Sent', 200),
+        ]);
+
+        $member = $this->createMember([
+            'phone_number' => '0712345679',
+        ]);
+
+        $this->postJson('/api/send-sms', [
+            'member_id' => $member->id,
+            'message' => 'Test message',
+        ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('summary.recipients', 1)
+            ->assertJsonPath('summary.sms_sent', 1);
+
+        $this->assertDatabaseHas('sms_logs', [
+            'recipient' => '255712345679',
+            'receiver' => (string) $member->id,
+            'type' => 'direct',
+            'status' => 'Sent',
+        ]);
+    }
+
+    public function test_sms_sends_once_when_duplicate_members_share_phone(): void
+    {
+        Http::fake([
+            '*' => Http::response('Sent', 200),
+        ]);
+
+        $this->createMember([
+            'membership_status' => 'active',
+            'phone_number' => '0712345680',
+        ]);
+        $this->createMember([
+            'membership_status' => 'active',
+            'phone_number' => '255712345680',
+        ]);
+
+        $this->postJson('/api/send-sms', [
+            'type' => 'washiriki',
+            'message' => 'Duplicate guard test',
+        ])
+            ->assertOk()
+            ->assertJsonPath('summary.sms_sent', 1)
+            ->assertJsonPath('summary.duplicates_skipped', 1);
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_sms_recent_duplicate_request_is_not_sent_again(): void
+    {
+        Http::fake([
+            '*' => Http::response('Sent', 200),
+        ]);
+
+        $member = $this->createMember([
+            'phone_number' => '0712345681',
+        ]);
+
+        $payload = [
+            'member_id' => $member->id,
+            'message' => 'Do not send twice',
+        ];
+
+        $this->postJson('/api/send-sms', $payload)
+            ->assertOk()
+            ->assertJsonPath('summary.sms_sent', 1)
+            ->assertJsonPath('summary.duplicates_skipped', 0);
+
+        $this->postJson('/api/send-sms', $payload)
+            ->assertOk()
+            ->assertJsonPath('summary.sms_sent', 0)
+            ->assertJsonPath('summary.duplicates_skipped', 1);
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_sms_user_id_prefers_linked_member_phone(): void
+    {
+        Http::fake([
+            '*' => Http::response('Sent', 200),
+        ]);
+
+        $user = User::factory()->create([
+            'role' => 'mshirika',
+            'phone' => '255799999999',
+        ]);
+        $this->createMember([
+            'user_id' => $user->id,
+            'phone_number' => '0712345682',
+        ]);
+
+        $this->postJson('/api/send-sms', [
+            'user_id' => $user->id,
+            'message' => 'Use member phone',
+        ])
+            ->assertOk()
+            ->assertJsonPath('summary.sms_sent', 1);
+
+        $this->assertDatabaseHas('sms_logs', [
+            'recipient' => '255712345682',
+            'receiver' => (string) $user->id,
+            'status' => 'Sent',
+        ]);
+        $this->assertDatabaseMissing('sms_logs', [
+            'recipient' => '255799999999',
+            'message' => 'Use member phone',
+        ]);
+        Http::assertSentCount(1);
+    }
+
+    public function test_sms_member_id_ignores_extra_direct_phone(): void
+    {
+        Http::fake([
+            '*' => Http::response('Sent', 200),
+        ]);
+
+        $member = $this->createMember([
+            'phone_number' => '0712345683',
+        ]);
+
+        $this->postJson('/api/send-sms', [
+            'member_id' => $member->id,
+            'phone' => '0799999999',
+            'message' => 'Selected member only',
+        ])
+            ->assertOk()
+            ->assertJsonPath('summary.sms_sent', 1);
+
+        $this->assertDatabaseHas('sms_logs', [
+            'recipient' => '255712345683',
+            'receiver' => (string) $member->id,
+            'status' => 'Sent',
+        ]);
+        $this->assertDatabaseMissing('sms_logs', [
+            'recipient' => '255799999999',
+            'message' => 'Selected member only',
+        ]);
+        Http::assertSentCount(1);
+    }
+
+    public function test_sms_washiriki_type_with_member_id_sends_only_selected_member(): void
+    {
+        Http::fake([
+            '*' => Http::response('Sent', 200),
+        ]);
+
+        $selected = $this->createMember([
+            'phone_number' => '0712345684',
+        ]);
+        $this->createMember([
+            'phone_number' => '0712345685',
+        ]);
+        $this->createMember([
+            'phone_number' => '0712345686',
+        ]);
+
+        $this->postJson('/api/send-sms', [
+            'type' => 'washiriki',
+            'member_id' => $selected->id,
+            'message' => 'Only selected member',
+        ])
+            ->assertOk()
+            ->assertJsonPath('summary.recipients', 1)
+            ->assertJsonPath('summary.sms_sent', 1);
+
+        $this->assertDatabaseHas('sms_logs', [
+            'recipient' => '255712345684',
+            'receiver' => (string) $selected->id,
+            'status' => 'Sent',
+        ]);
+        $this->assertDatabaseMissing('sms_logs', [
+            'recipient' => '255712345685',
+            'message' => 'Only selected member',
+        ]);
+        $this->assertDatabaseMissing('sms_logs', [
+            'recipient' => '255712345686',
+            'message' => 'Only selected member',
+        ]);
+        Http::assertSentCount(1);
     }
 
     private function createMember(array $attributes = []): Member

@@ -43,6 +43,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/mtumiaji', [AuthController::class, 'me']);
     Route::post('/user/update-profile', [AuthController::class, 'updateProfile']);
     Route::get('/users', [AuthController::class, 'allUsers']);
+    Route::put('/users/{id}', [AuthController::class, 'updateUser']);
+    Route::patch('/users/{id}', [AuthController::class, 'updateUser']);
+    Route::post('/users/{user}/deactivate', [MembersController::class, 'deactivateUser']);
+    Route::delete('/users/{user}/deactivate', [MembersController::class, 'deactivateUser']);
     Route::get('/users/pending-registrations', [AuthController::class, 'pendingRegistrations']);
     // Reject a user (mark as rejected instead of deleting)
     Route::post('/users/{id}/reject', [AuthController::class, 'rejectUser']);
@@ -52,8 +56,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/members/reports', [MembersController::class, 'report']);
     Route::post('/admin/members', [MembersController::class, 'store']);
     Route::get('/member-marriages', [MemberMarriageController::class, 'index']);
+    Route::get('/member-marriages/options', [MemberMarriageController::class, 'options']);
     Route::post('/member-marriages', [MemberMarriageController::class, 'store']);
     Route::delete('/member-marriages/{memberMarriage}', [MemberMarriageController::class, 'destroy']);
+    Route::get('/marriages', [MemberMarriageController::class, 'index']);
+    Route::get('/marriages/options', [MemberMarriageController::class, 'options']);
+    Route::post('/marriages', [MemberMarriageController::class, 'store']);
+    Route::delete('/marriages/{memberMarriage}', [MemberMarriageController::class, 'destroy']);
     Route::apiResource('members', MembersController::class);
     Route::post('/authorize-user', [MembersController::class, 'authorizeUser']);
     Route::post('/members/{member}/deactivate', [MembersController::class, 'deactivate']);

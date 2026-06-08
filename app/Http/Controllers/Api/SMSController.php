@@ -9,6 +9,7 @@ use App\Models\Group;
 use App\Models\SmsLog;
 use App\Services\SMSService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -21,7 +22,13 @@ class SMSController extends Controller
     {
         $request->validate([
             'type' => 'nullable|string',        // all, male, female, group, individual
-            'receiver' => 'nullable|string',    // group name or individual name/phone
+            'receiver' => 'nullable',           // group name or individual name/phone/id
+            'recipient_type' => 'nullable|string',
+            'target_type' => 'nullable|string',
+            'member_id' => 'nullable',
+            'user_id' => 'nullable',
+            'recipient_id' => 'nullable',
+            'selected_member_id' => 'nullable',
             'message' => 'required|string',
             'phone' => 'nullable|string',       // direct phone
             'email' => 'nullable|email',        // direct email
@@ -29,8 +36,14 @@ class SMSController extends Controller
             'send_email' => 'nullable|boolean', // send email if true
         ]);
 
-        $type = $request->type;
-        $receiver = $request->receiver;
+        $type = $request->type ?? $request->recipient_type ?? $request->target_type;
+        [$receiver, $receiverField] = $this->firstFilledWithField($request, [
+            'receiver',
+            'member_id',
+            'user_id',
+            'recipient_id',
+            'selected_member_id',
+        ]);
         $message = $request->message;
         $directPhone = $request->phone ? $this->formatTanzaniaPhone($request->phone) : null;
         $directEmail = $request->email;
@@ -38,9 +51,10 @@ class SMSController extends Controller
         $sendEmail = $request->send_email ?? false;
 
         $recipients = collect();
+        $selectedRecipientFields = ['member_id', 'user_id', 'recipient_id', 'selected_member_id'];
 
         // Direct send
-        if ($directPhone || $directEmail) {
+        if (($directPhone || $directEmail) && ! $receiver) {
             if ($directPhone && ! $this->isValidTanzaniaPhone($directPhone)) {
                 $this->logSmsAttempt($directPhone, $receiver ?? $name, $type ?? 'direct', $message, 'Failed', [
                     'error' => 'Invalid phone number. Use 0XXXXXXXXX, 255XXXXXXXXX, or +255XXXXXXXXX.',
@@ -58,38 +72,65 @@ class SMSController extends Controller
                 'name' => $name
             ]);
         } else {
-            // Lookup recipients by type
-            switch (strtolower($type)) {
-                case 'all':
-                    $recipients = User::all();
-                    break;
-                case 'male':
-                case 'm':
-                    $recipients = User::where('gender', 'M')->get();
-                    break;
-                case 'female':
-                case 'f':
-                    $recipients = User::where('gender', 'F')->get();
-                    break;
-                case 'group':
-                    $group = Group::where('name', $receiver)->first();
-                    if ($group) {
-                        $recipients = $group->members()->get();
-                    }
-                    break;
-                case 'individual':
-                    $user = User::where('full_name', $receiver)
-                        ->orWhere('phone', $receiver)
-                        ->first();
-                    if ($user) {
-                        $recipients = collect([$user]);
-                    }
-                    break;
-                default:
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Invalid type provided or no direct phone/email.'
-                    ], 422);
+            $normalizedType = strtolower((string) $type);
+
+            if (
+                $receiver
+                && (
+                    in_array($receiverField, $selectedRecipientFields, true)
+                    || in_array($normalizedType, ['washiriki', 'members'], true)
+                )
+            ) {
+                $recipients = $this->resolveIndividualRecipients($receiver, $receiverField);
+            } else {
+                // Lookup recipients by type
+                switch ($normalizedType) {
+                    case 'all':
+                        $recipients = User::all();
+                        break;
+                    case 'washiriki':
+                    case 'members':
+                        $recipients = Member::where('membership_status', 'active')->get();
+                        break;
+                    case 'male':
+                    case 'm':
+                        $recipients = User::where('gender', 'M')->get();
+                        break;
+                    case 'female':
+                    case 'f':
+                        $recipients = User::where('gender', 'F')->get();
+                        break;
+                    case 'group':
+                        $group = Group::where('name', $receiver)->first();
+                        if ($group) {
+                            $recipients = $group->members()->get();
+                        }
+                        break;
+                    case 'individual':
+                    case 'mshiriki':
+                    case 'mshirika':
+                    case 'member':
+                    case 'mtumiaji':
+                    case 'user':
+                    case 'single':
+                    case 'specific':
+                    case 'selected':
+                        $recipients = $this->resolveIndividualRecipients($receiver, $receiverField);
+                        break;
+                    default:
+                        if ($receiver) {
+                            $recipients = $this->resolveIndividualRecipients($receiver, $receiverField);
+                        }
+
+                        if ($recipients->isEmpty()) {
+                            return response()->json([
+                                'status' => 'error',
+                                'message' => 'Invalid type provided or no direct phone/email.',
+                                'received_type' => $type,
+                                'received_receiver' => $receiver,
+                            ], 422);
+                        }
+                }
             }
         }
 
@@ -105,12 +146,14 @@ class SMSController extends Controller
         $sentCount = 0;
         $failedCount = 0;
         $invalidCount = 0;
+        $duplicateCount = 0;
+        $processedPhones = [];
         $smsService = app(SMSService::class);
 
         foreach ($recipients as $recipient) {
             $recipientName = $recipient->name ?? $recipient->full_name ?? 'Recipient';
-            $recipientPhone = $recipient->phone ?? $recipient->phone_number ?? null;
-            $recipientEmail = $recipient->email ?? null;
+            $recipientPhone = $recipient->phone_number ?? $recipient->member?->phone_number ?? $recipient->phone ?? null;
+            $recipientEmail = $recipient->email ?? $recipient->member?->email ?? null;
 
             // Send SMS
             if ($recipientPhone) {
@@ -127,6 +170,23 @@ class SMSController extends Controller
                     continue;
                 }
 
+                if (isset($processedPhones[$formattedPhone])) {
+                    $duplicateCount++;
+                    $smsResults[$recipientName] = 'Skipped: duplicate phone number';
+
+                    continue;
+                }
+
+                $processedPhones[$formattedPhone] = true;
+                $dedupeKey = 'sms:recent:'.sha1($formattedPhone.'|'.$message);
+
+                if (! Cache::add($dedupeKey, true, now()->addSeconds(30))) {
+                    $duplicateCount++;
+                    $smsResults[$recipientName] = 'Skipped: duplicate recent SMS';
+
+                    continue;
+                }
+
                 try {
                     $result = $smsService->sendSMS($formattedPhone, $message);
                     $smsStatus = $result['status'] ? 'Sent' : 'Failed';
@@ -135,6 +195,7 @@ class SMSController extends Controller
                         $sentCount++;
                         $smsResults[$recipientName] = 'Sent';
                     } else {
+                        Cache::forget($dedupeKey);
                         $failedCount++;
                         $smsResults[$recipientName] = 'Failed: '.($result['error_type'] ?? 'SMS provider error');
                     }
@@ -142,6 +203,7 @@ class SMSController extends Controller
                     $this->logSmsAttempt($formattedPhone, $receiver ?? $recipientName, $type ?? 'direct', $message, $smsStatus, $result);
 
                 } catch (\Exception $e) {
+                    Cache::forget($dedupeKey);
                     $failedCount++;
                     Log::error("SMS failed for {$recipientPhone}: ".$e->getMessage());
                     $smsResults[$recipientName] = 'Failed: '.$e->getMessage();
@@ -186,6 +248,7 @@ class SMSController extends Controller
                 'sms_sent' => $sentCount,
                 'sms_failed' => $failedCount,
                 'invalid_phone_numbers' => $invalidCount,
+                'duplicates_skipped' => $duplicateCount,
             ],
             'sms_results' => $smsResults,
             'email_results' => $emailResults,
@@ -205,6 +268,69 @@ class SMSController extends Controller
         }
 
         return $num;
+    }
+
+    private function firstFilledWithField(Request $request, array $fields): array
+    {
+        foreach ($fields as $field) {
+            if ($request->filled($field)) {
+                return [(string) $request->input($field), $field];
+            }
+        }
+
+        return [null, null];
+    }
+
+    private function resolveIndividualRecipients(?string $receiver, ?string $receiverField = null)
+    {
+        if (! $receiver) {
+            return collect();
+        }
+
+        $formattedPhone = $this->formatTanzaniaPhone($receiver);
+
+        if (in_array($receiverField, ['member_id', 'selected_member_id'], true)) {
+            $member = Member::find($receiver);
+
+            return $member ? collect([$member]) : collect();
+        }
+
+        if ($receiverField === 'user_id') {
+            $user = User::with('member')->find($receiver);
+
+            return $user ? collect([$user]) : collect();
+        }
+
+        if ($receiverField === 'recipient_id') {
+            $member = Member::find($receiver);
+            if ($member) {
+                return collect([$member]);
+            }
+
+            $user = User::with('member')->find($receiver);
+
+            return $user ? collect([$user]) : collect();
+        }
+
+        $member = Member::where('full_name', $receiver)
+            ->orWhere('membership_number', $receiver)
+            ->orWhere('phone_number', $receiver)
+            ->orWhere('phone_number', $formattedPhone)
+            ->orWhere('email', $receiver)
+            ->first();
+
+        if ($member) {
+            return collect([$member]);
+        }
+
+        $user = User::where('full_name', $receiver)
+            ->orWhere('phone', $receiver)
+            ->orWhere('phone', $formattedPhone)
+            ->orWhere('email', $receiver)
+            ->when(is_numeric($receiver), fn ($query) => $query->orWhere('id', $receiver))
+            ->first();
+
+        return $user ? collect([$user->load('member')]) : collect();
     }
 
     private function isValidTanzaniaPhone(?string $phone): bool

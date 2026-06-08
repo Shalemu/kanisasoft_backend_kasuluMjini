@@ -423,6 +423,183 @@ class AuthController extends Controller
     }
 
     /**
+     * UPDATE USER
+     */
+    public function updateUser(Request $request, $id)
+    {
+        $user = User::with('member')->findOrFail($id);
+
+        $request->merge([
+            'marital_status' => $request->has('marital_status') ? trim((string) $request->marital_status) : $user->marital_status,
+            'gender' => match ($request->gender ?? $user->gender) {
+                'Mwanaume' => 'M',
+                'Mwanamke' => 'F',
+                default => $request->gender ?? $user->gender,
+            },
+            'phone' => $request->has('phone') ? $this->formatTanzaniaPhone($request->phone ?? '') : $user->phone,
+        ]);
+
+        $zoneValues = ['MURUBOMBO', 'MURUSI B', 'KIGANAMO', 'MURUSI A', 'KUMUNYIKA B', 'KAGUNGA C', 'KUMUNYIKA A', 'KAGANGA B', 'MURUBONA A', 'KAGUNGA A', 'KAGUNGA B', 'MURUBONA B'];
+
+        $validated = $request->validate([
+            'full_name' => 'sometimes|required|string|max:255',
+            'gender' => 'sometimes|required|in:M,F',
+            'birth_date' => 'nullable|date',
+            'birth_place' => 'nullable|string|max:255',
+            'birth_region' => 'nullable|string|max:255',
+            'birth_district' => 'nullable|string|max:255',
+            'birth_ward' => 'nullable|string|max:255',
+            'birth_street' => 'nullable|string|max:255',
+            'marital_status' => ['nullable', Rule::in(['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'])],
+            'marriage_type' => 'nullable|in:Kikristo,Kiserikali,Kienyeji',
+            'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ameoa,Ameolewa',
+            'children_count' => 'nullable|integer|min:0',
+            'zone' => ['nullable', Rule::in($zoneValues)],
+            'residential_ward' => 'nullable|string|max:255',
+            'residential_street' => 'nullable|string|max:255',
+            'phone' => ['sometimes', 'required', 'string', 'max:20', 'unique:users,phone,'.$user->id],
+            'whatsapp_number' => 'nullable|string|max:20',
+            'email' => ['sometimes', 'required', 'email', 'max:255', 'unique:users,email,'.$user->id],
+            'role' => 'nullable|in:admin,kiongozi,mshirika',
+            'has_disability' => 'nullable|boolean',
+            'disability_description' => 'nullable|string|max:500|required_if:has_disability,true,1',
+            'date_of_conversion' => 'nullable|date',
+            'conversion_year' => 'nullable|integer|min:1900|max:2100',
+            'conversion_month' => 'nullable|integer|min:1|max:12',
+            'conversion_day' => 'nullable|integer|min:1|max:31',
+            'church_of_conversion' => 'nullable|string',
+            'baptism_date' => 'nullable|date',
+            'baptism_year' => 'nullable|integer|min:1900|max:2100',
+            'baptism_month' => 'nullable|integer|min:1|max:12',
+            'baptism_day' => 'nullable|integer|min:1|max:31',
+            'baptism_place' => 'nullable|string',
+            'baptizer_name' => 'nullable|string',
+            'baptizer_title' => 'nullable|string',
+            'previous_church' => 'nullable|string',
+            'church_service' => 'nullable|string',
+            'service_duration' => 'nullable|string',
+            'participates_communion' => 'nullable|boolean',
+            'education_level' => 'nullable|string',
+            'profession' => 'nullable|string',
+            'occupation' => 'nullable|string',
+            'work_place' => 'nullable|string',
+            'work_contact' => 'nullable|string',
+            'lives_alone' => 'nullable|boolean',
+            'lives_with' => 'nullable|string',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $userFields = [
+                'full_name',
+                'gender',
+                'birth_date',
+                'birth_place',
+                'birth_region',
+                'birth_district',
+                'birth_ward',
+                'birth_street',
+                'marital_status',
+                'marriage_type',
+                'spouse_name',
+                'children_count',
+                'zone',
+                'residential_ward',
+                'residential_street',
+                'phone',
+                'whatsapp_number',
+                'email',
+                'has_disability',
+                'disability_description',
+                'role',
+            ];
+
+            $user->update(collect($validated)->only($userFields)->all());
+
+            $member = $user->member;
+            if ($member) {
+                $memberData = collect($validated)->only([
+                    'full_name',
+                    'gender',
+                    'birth_date',
+                    'birth_place',
+                    'birth_region',
+                    'birth_district',
+                    'birth_ward',
+                    'birth_street',
+                    'marital_status',
+                    'marriage_type',
+                    'spouse_name',
+                    'whatsapp_number',
+                    'email',
+                    'has_disability',
+                    'disability_description',
+                    'date_of_conversion',
+                    'conversion_year',
+                    'conversion_month',
+                    'conversion_day',
+                    'church_of_conversion',
+                    'baptism_date',
+                    'baptism_year',
+                    'baptism_month',
+                    'baptism_day',
+                    'baptism_place',
+                    'baptizer_name',
+                    'baptizer_title',
+                    'previous_church',
+                    'church_service',
+                    'service_duration',
+                    'participates_communion',
+                    'education_level',
+                    'profession',
+                    'occupation',
+                    'work_place',
+                    'work_contact',
+                    'lives_alone',
+                    'lives_with',
+                ])->all();
+
+                if (array_key_exists('children_count', $validated)) {
+                    $memberData['number_of_children'] = $validated['children_count'];
+                }
+
+                if (array_key_exists('zone', $validated)) {
+                    $memberData['residential_zone'] = $validated['zone'];
+                }
+
+                if (array_key_exists('phone', $validated)) {
+                    $memberData['phone_number'] = $validated['phone'];
+                }
+
+                if (array_key_exists('residential_ward', $validated)) {
+                    $memberData['residential_ward'] = $validated['residential_ward'];
+                }
+
+                if (array_key_exists('residential_street', $validated)) {
+                    $memberData['residential_street'] = $validated['residential_street'];
+                }
+
+                $member->update($memberData);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'User updated successfully.',
+                'user' => $user->fresh()->load('member'),
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Server error: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * LOGIN
      */
     public function login(Request $request)

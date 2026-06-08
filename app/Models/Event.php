@@ -12,16 +12,28 @@ class Event extends Model
     // Fields that can be mass-assigned
     protected $fillable = [
         'title',
+        'type',
         'date',
+        'start_date',
+        'end_date',
         'time',
+        'start_time',
         'location',
         'category',
         'description',
+        'audience_group_ids',
     ];
 
     // Cast date and time fields to appropriate types
     protected $casts = [
         'date' => 'date',
-        'time' => 'datetime:H:i',
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'audience_group_ids' => 'array',
     ];
+
+    protected function serializeDate(\DateTimeInterface $date)
+    {
+        return $date->format('Y-m-d');
+    }
 }

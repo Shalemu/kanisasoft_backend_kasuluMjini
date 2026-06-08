@@ -650,6 +650,20 @@ class MembersController extends Controller
         ]);
     }
 
+    public function deactivateUser(Request $request, User $user)
+    {
+        $member = $user->member;
+
+        if (! $member) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Member not found for this user.',
+            ], 404);
+        }
+
+        return $this->deactivate($request, $member);
+    }
+
     public function stats()
     {
         $guestCount = Guest::count();
