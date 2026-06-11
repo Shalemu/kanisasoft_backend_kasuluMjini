@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildrenController;
 use App\Http\Controllers\Api\ContributionController;
 use App\Http\Controllers\Api\ContributionTypeController;
+use App\Http\Controllers\Api\DailyWordController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\GalleryController;
 use App\Http\Controllers\Api\GroupsController;
@@ -154,6 +155,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/dashboard-verse', [UserSettingsController::class, 'getVerse']);
     Route::post('/dashboard-verse', [UserSettingsController::class, 'saveVerse']);
+
+    // Daily Word
+    Route::get('/daily-words/today', [DailyWordController::class, 'today']);
+    Route::get('/daily-words/stats', [DailyWordController::class, 'stats']);
+    Route::post('/daily-words/bulk', [DailyWordController::class, 'bulkStore']);
+    Route::apiResource('daily-words', DailyWordController::class);
 });
 
 // Leader group actions
