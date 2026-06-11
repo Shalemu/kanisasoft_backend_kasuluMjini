@@ -27,7 +27,6 @@ use Illuminate\Support\Facades\Route;
 //  Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::post('/change-password', [AuthController::class, 'changePassword'])->middleware('auth:sanctum');
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::middleware('auth:sanctum')->post('/users/assign-roles', [UserRoleController::class, 'assignRoles']);
@@ -51,6 +50,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/pending-registrations', [AuthController::class, 'pendingRegistrations']);
     // Reject a user (mark as rejected instead of deleting)
     Route::post('/users/{id}/reject', [AuthController::class, 'rejectUser']);
+
+    //change password
+    Route::post('/user/change-password', [AuthController::class, 'changePassword']);
 
     // Members
     Route::get('/members/stats', [MembersController::class, 'stats']);
