@@ -284,7 +284,7 @@ public function addMember(Request $request, Group $group)
         }
     }
 
-    // 🚫 Already exists
+   
     if ($group->members()->where('member_id', $member->id)->exists()) {
         return response()->json([
             'status' => 'error',
@@ -381,47 +381,7 @@ public function addMember(Request $request, Group $group)
         ]);
     }
 
-  public function members($id)
-{
-    // Load group with members and leader
-    $group = Group::with(['members.user', 'leader'])->find($id);
-
-    if (!$group) {
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Kundi halikupatikana.',
-        ], 404);
-    }
-
-    // Prepare members data
-    $members = $group->members->map(function ($member) {
-        return [
-            'id' => $member->id,
-            'full_name' => $member->full_name,
-            'email' => $member->email,
-            'role' => $member->user?->role ?? null,
-            'membership_number' => $member->membership_number ?? null,
-            'photo_url' => $member->photo_url ?? null,
-        ];
-    });
-
-    // Leader info (separate object)
-    $leader = $group->leader ? [
-        'id' => $group->leader->id,
-        'full_name' => $group->leader->full_name,
-        'email' => $group->leader->email ?? null,
-        'role' => $group->leader->user?->role ?? null,
-        'membership_number' => $group->leader->membership_number ?? null,
-        'photo_url' => $group->leader->photo_url ?? null,
-    ] : null;
-
-    return response()->json([
-        'status' => 'success',
-        'members' => $members,
-        'leader_id' => $group->leader_id,
-        'leader' => $leader,
-    ]);
-}
+ 
     /**
      * Search members in group
      */

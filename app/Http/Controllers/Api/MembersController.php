@@ -393,11 +393,11 @@ public function authorizeUser(Request $request)
         $member = $user->member;
 
         //  Update status to active
-        $member->update([
-            'membership_status' => 'active',
-            'membership_number' => $member->membership_number ?? $this->generateMembershipNumber(),
-            'is_authorized' => 1,
-        ]);
+    $member->update([
+        'membership_status' => 'active',
+        'membership_number' => $this->generateMembershipNumber(),
+        'is_authorized' => true,
+    ]);
 
     } else {
 
@@ -637,11 +637,13 @@ public function stats()
     //     return str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     // }
 
-    private function generateMembershipNumber()
+private function generateMembershipNumber()
 {
-    $numbers = Member::orderByRaw('CAST(membership_number AS UNSIGNED)')
+    $numbers = Member::whereNotNull('membership_number')
         ->pluck('membership_number')
         ->map(fn ($n) => (int) $n)
+        ->sort()
+        ->values()
         ->toArray();
 
     $expected = 1;
@@ -650,6 +652,7 @@ public function stats()
         if ($number != $expected) {
             break;
         }
+
         $expected++;
     }
 
