@@ -68,6 +68,121 @@ class DemoFeedbackApiTest extends TestCase
             ->assertJsonCount(1, 'members');
     }
 
+    public function test_member_search_filter_uses_registration_fields_and_can_create_group(): void
+    {
+        $leader = $this->createMember(['membership_number' => '0007']);
+        $matched = $this->createMember([
+            'full_name' => 'Matched Husband',
+            'gender' => 'M',
+            'marital_status' => 'Ameoa',
+            'residential_zone' => 'MURUBOMBO',
+            'education_level' => 'Degree',
+            'occupation' => 'Teacher',
+            'has_disability' => false,
+            'previous_church' => 'RGCM Kigoma',
+            'membership_status' => 'active',
+        ]);
+        $this->createMember([
+            'full_name' => 'Different Member',
+            'gender' => 'F',
+            'marital_status' => 'Hajaolewa',
+            'residential_zone' => 'KIGANAMO',
+            'education_level' => 'Certificate',
+            'occupation' => 'Nurse',
+            'previous_church' => 'Other Church',
+            'membership_status' => 'active',
+        ]);
+
+        $query = http_build_query([
+            'gender' => 'Mwanaume',
+            'marital_status' => 'Ameoa',
+            'residential_zone' => 'MURUBOMBO',
+            'education_level' => 'Degree',
+            'search' => 'RGCM',
+        ]);
+
+        $this->getJson('/api/members/search-filter?'.$query)
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('members.0.id', $matched->id)
+            ->assertJsonPath('filters.gender', 'M')
+            ->assertJsonPath('saved_group_criteria.gender', 'M')
+            ->assertJsonPath('export.rows.0.occupation', 'Teacher');
+
+        $response = $this->postJson('/api/members/search-filter/groups', [
+            'name' => 'Wanaume Waliooa',
+            'leader_membership_number' => '0007',
+            'whatsapp_link' => 'https://chat.whatsapp.com/example',
+            'gender' => 'Mwanaume',
+            'marital_status' => 'Ameoa',
+            'residential_zone' => 'MURUBOMBO',
+            'education_level' => 'Degree',
+            'search' => 'RGCM',
+        ]);
+
+        $groupId = $response->assertCreated()
+            ->assertJsonPath('assigned_members_count', 1)
+            ->assertJsonPath('group.name', 'Wanaume Waliooa')
+            ->assertJsonPath('group.leader_id', $leader->id)
+            ->assertJsonPath('filter_criteria.gender', 'M')
+            ->json('group.id');
+
+        $this->assertDatabaseHas('member_group', [
+            'group_id' => $groupId,
+            'member_id' => $matched->id,
+        ]);
+        $this->assertDatabaseHas('groups', [
+            'id' => $groupId,
+            'name' => 'Wanaume Waliooa',
+        ]);
+    }
+
+    public function test_approved_member_is_auto_assigned_to_matching_filtered_group(): void
+    {
+        $existing = $this->createMember([
+            'gender' => 'M',
+            'marital_status' => 'Ameoa',
+            'residential_zone' => 'MURUBOMBO',
+            'education_level' => 'Degree',
+            'membership_status' => 'active',
+        ]);
+
+        $groupId = $this->postJson('/api/members/search-filter/groups', [
+            'name' => 'Wanaume Waliooa',
+            'gender' => 'M',
+            'marital_status' => 'Ameoa',
+            'residential_zone' => 'MURUBOMBO',
+            'education_level' => 'Degree',
+        ])->assertCreated()->json('group.id');
+
+        $pendingUser = User::factory()->create(['role' => null]);
+        $pending = $this->createMember([
+            'user_id' => $pendingUser->id,
+            'gender' => 'M',
+            'marital_status' => 'Ameoa',
+            'residential_zone' => 'MURUBOMBO',
+            'education_level' => 'Degree',
+            'membership_status' => 'pending',
+            'membership_number' => null,
+            'is_authorized' => false,
+            'phone_number' => null,
+            'email' => null,
+        ]);
+
+        $this->postJson('/api/authorize-user', ['user_id' => $pendingUser->id])
+            ->assertOk()
+            ->assertJsonPath('auto_assigned_groups.0.id', $groupId);
+
+        $this->assertDatabaseHas('member_group', [
+            'group_id' => $groupId,
+            'member_id' => $existing->id,
+        ]);
+        $this->assertDatabaseHas('member_group', [
+            'group_id' => $groupId,
+            'member_id' => $pending->id,
+        ]);
+    }
+
     public function test_pending_registration_endpoint_returns_count_and_latest_records(): void
     {
         $pendingUser = User::factory()->create(['role' => null]);

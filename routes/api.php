@@ -56,7 +56,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Members
     Route::get('/members/stats', [MembersController::class, 'stats']);
+    Route::get('/members/search-filter', [MembersController::class, 'report']);
+    Route::post('/members/search-filter/groups', [MembersController::class, 'createGroupFromSearch']);
     Route::get('/members/reports', [MembersController::class, 'report']);
+    Route::post('/members/reports/groups', [MembersController::class, 'createGroupFromSearch']);
     Route::post('/admin/members', [MembersController::class, 'store']);
     Route::get('/member-marriages', [MemberMarriageController::class, 'index']);
     Route::get('/member-marriages/options', [MemberMarriageController::class, 'options']);

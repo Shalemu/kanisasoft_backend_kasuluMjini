@@ -13,8 +13,13 @@ class Group extends Model
 
     protected $fillable = [
         'name',
-        'leader_id', 
-         'whatsapp_link', 
+        'leader_id',
+        'whatsapp_link',
+        'filter_criteria',
+    ];
+
+    protected $casts = [
+        'filter_criteria' => 'array',
     ];
 
     /**

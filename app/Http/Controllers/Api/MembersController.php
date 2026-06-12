@@ -7,6 +7,7 @@ use App\Mail\MemberAuthorizedMail;
 use App\Models\Contribution;
 use App\Models\DeletedMember;
 use App\Models\Guest;
+use App\Models\Group;
 use App\Models\LeadershipRole;
 use App\Models\Member;
 use App\Models\User;
@@ -22,6 +23,114 @@ use Illuminate\Validation\Rule;
 
 class MembersController extends Controller
 {
+    private const EXACT_FILTER_FIELDS = [
+        'full_name',
+        'membership_number',
+        'gender',
+        'phone_number',
+        'whatsapp_number',
+        'email',
+        'marital_status',
+        'marriage_type',
+        'spouse_name',
+        'birth_place',
+        'birth_region',
+        'birth_district',
+        'birth_ward',
+        'birth_street',
+        'residential_zone',
+        'residential_ward',
+        'residential_street',
+        'disability_description',
+        'church_of_conversion',
+        'baptism_place',
+        'baptizer_name',
+        'baptizer_title',
+        'previous_church',
+        'previous_church_status',
+        'tangu_lini',
+        'church_service',
+        'service_duration',
+        'education_level',
+        'profession',
+        'occupation',
+        'work_place',
+        'work_contact',
+        'lives_with',
+        'family_role',
+        'live_with_who',
+        'next_of_kin',
+        'next_of_kin_phone',
+        'verified_by',
+        'membership_status',
+        'deactivation_reason',
+    ];
+
+    private const BOOLEAN_FILTER_FIELDS = [
+        'has_disability',
+        'lives_alone',
+        'participates_communion',
+        'is_authorized',
+    ];
+
+    private const DATE_FILTER_FIELDS = [
+        'birth_date',
+        'date_of_conversion',
+        'baptism_date',
+        'membership_start_date',
+        'created_at',
+    ];
+
+    private const NUMERIC_FILTER_FIELDS = [
+        'number_of_children',
+        'conversion_year',
+        'conversion_month',
+        'conversion_day',
+        'baptism_year',
+        'baptism_month',
+        'baptism_day',
+    ];
+
+    private const SEARCHABLE_FIELDS = [
+        'full_name',
+        'membership_number',
+        'phone_number',
+        'whatsapp_number',
+        'email',
+        'birth_place',
+        'birth_region',
+        'birth_district',
+        'birth_ward',
+        'birth_street',
+        'spouse_name',
+        'residential_zone',
+        'residential_ward',
+        'residential_street',
+        'disability_description',
+        'church_of_conversion',
+        'baptism_place',
+        'baptizer_name',
+        'baptizer_title',
+        'previous_church',
+        'previous_church_status',
+        'tangu_lini',
+        'church_service',
+        'service_duration',
+        'education_level',
+        'profession',
+        'occupation',
+        'work_place',
+        'work_contact',
+        'lives_with',
+        'family_role',
+        'live_with_who',
+        'next_of_kin',
+        'next_of_kin_phone',
+        'verified_by',
+        'membership_status',
+        'deactivation_reason',
+    ];
+
     /**
      * List all members
      */
@@ -42,7 +151,9 @@ class MembersController extends Controller
 
     public function report(Request $request)
     {
-        $members = $this->filteredMembersQuery($request)
+        $criteria = $this->normalizedMemberFilters($request);
+
+        $members = $this->filteredMembersQuery($request, $criteria)
             ->with(['user', 'groups:id,name'])
             ->orderByRaw('membership_number IS NULL')
             ->orderByRaw('membership_number + 0 ASC')
@@ -58,11 +169,8 @@ class MembersController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'filters' => $request->only([
-                'marital_status', 'education_level', 'birth_month', 'birthdays_this_month',
-                'gender', 'zone', 'residential_zone', 'membership_status',
-                'from_date', 'to_date', 'date_from', 'date_to', 'search',
-            ]),
+            'filters' => $criteria,
+            'saved_group_criteria' => $this->groupableCriteria($criteria),
             'summary' => [
                 'total_members' => $members->count(),
                 'active_members' => $statusCounts->get('active', 0),
@@ -76,7 +184,8 @@ class MembersController extends Controller
             'export' => [
                 'columns' => [
                     'membership_number', 'full_name', 'gender', 'phone_number', 'email',
-                    'residential_zone', 'membership_status', 'membership_start_date',
+                    'marital_status', 'education_level', 'occupation', 'residential_zone',
+                    'membership_status', 'membership_start_date',
                 ],
                 'rows' => $members->map(fn ($member) => [
                     'membership_number' => $member->membership_number,
@@ -84,6 +193,9 @@ class MembersController extends Controller
                     'gender' => $member->gender,
                     'phone_number' => $member->phone_number,
                     'email' => $member->email,
+                    'marital_status' => $member->marital_status,
+                    'education_level' => $member->education_level,
+                    'occupation' => $member->occupation,
                     'residential_zone' => $member->residential_zone,
                     'membership_status' => $member->membership_status,
                     'membership_start_date' => optional($member->membership_start_date)->format('Y-m-d'),
@@ -93,44 +205,175 @@ class MembersController extends Controller
         ]);
     }
 
-    private function filteredMembersQuery(Request $request)
+    public function createGroupFromSearch(Request $request)
     {
         $request->validate([
-            'marital_status' => 'nullable|string|max:50',
-            'education_level' => 'nullable|string|max:255',
-            'birth_month' => 'nullable|integer|between:1,12',
-            'birthdays_this_month' => 'nullable|boolean',
-            'gender' => 'nullable|in:M,F,Mwanaume,Mwanamke',
-            'zone' => 'nullable|string|max:255',
-            'residential_zone' => 'nullable|string|max:255',
-            'membership_status' => 'nullable|string|max:50',
-            'from_date' => 'nullable|date',
-            'to_date' => 'nullable|date|after_or_equal:from_date',
-            'date_from' => 'nullable|date',
-            'date_to' => 'nullable|date|after_or_equal:date_from',
-            'search' => 'nullable|string|max:255',
+            'name' => 'required|string|max:255|unique:groups,name',
+            'leader_membership_number' => 'nullable|string',
+            'leader_id' => 'nullable|integer|exists:members,id',
+            'whatsapp_link' => 'nullable|url',
         ]);
 
+        $criteria = $this->normalizedMemberFilters($request);
+        $groupCriteria = $this->groupableCriteria($criteria);
+
+        $leaderId = $request->integer('leader_id') ?: null;
+        if ($request->filled('leader_membership_number')) {
+            $leader = Member::where('membership_number', $this->normalizeMembershipNumber($request->leader_membership_number))->first();
+            if (! $leader) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Huyo mshirika hana namba ya ushirika.',
+                ], 404);
+            }
+            $leaderId = $leader->id;
+        }
+
+        $memberIds = $this->filteredMembersQuery($request, $criteria)
+            ->where('membership_status', 'active')
+            ->pluck('id');
+
+        if ($memberIds->isEmpty()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Hakuna washirika waliopatikana kwa vigezo hivyo.',
+            ], 422);
+        }
+
+        $group = DB::transaction(function () use ($request, $leaderId, $groupCriteria, $memberIds) {
+            $group = Group::create([
+                'name' => $request->name,
+                'leader_id' => $leaderId,
+                'whatsapp_link' => $request->whatsapp_link,
+                'filter_criteria' => $groupCriteria,
+            ]);
+
+            $group->members()->syncWithoutDetaching($memberIds->all());
+
+            return $group->fresh(['leader'])->loadCount('members');
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Kundi limetengenezwa na washirika wameongezwa.',
+            'group' => $group,
+            'assigned_members_count' => $memberIds->count(),
+            'filter_criteria' => $groupCriteria,
+        ], 201);
+    }
+
+    private function filteredMembersQuery(Request $request, ?array $criteria = null)
+    {
+        $criteria ??= $this->normalizedMemberFilters($request);
         $query = Member::query();
 
-        foreach (['marital_status', 'education_level', 'membership_status'] as $field) {
-            if ($request->filled($field)) {
-                $query->where($field, $request->input($field));
+        foreach (self::EXACT_FILTER_FIELDS as $field) {
+            $this->applyExactFilter($query, $field, $criteria[$field] ?? null);
+        }
+
+        foreach (self::BOOLEAN_FILTER_FIELDS as $field) {
+            if (array_key_exists($field, $criteria)) {
+                $query->where($field, $criteria[$field]);
             }
         }
 
-        if ($request->filled('gender')) {
-            $gender = match ($request->gender) {
-                'Mwanaume' => 'M',
-                'Mwanamke' => 'F',
-                default => $request->gender,
-            };
-            $query->where('gender', $gender);
+        foreach (self::NUMERIC_FILTER_FIELDS as $field) {
+            if (array_key_exists($field, $criteria)) {
+                $query->where($field, $criteria[$field]);
+            }
+            if (array_key_exists($field.'_min', $criteria)) {
+                $query->where($field, '>=', $criteria[$field.'_min']);
+            }
+            if (array_key_exists($field.'_max', $criteria)) {
+                $query->where($field, '<=', $criteria[$field.'_max']);
+            }
         }
 
-        $zone = $request->input('zone', $request->input('residential_zone'));
-        if (filled($zone)) {
-            $query->where('residential_zone', $zone);
+        foreach (self::DATE_FILTER_FIELDS as $field) {
+            if (array_key_exists($field, $criteria)) {
+                $query->whereDate($field, $criteria[$field]);
+            }
+            if (array_key_exists($field.'_from', $criteria)) {
+                $query->whereDate($field, '>=', $criteria[$field.'_from']);
+            }
+            if (array_key_exists($field.'_to', $criteria)) {
+                $query->whereDate($field, '<=', $criteria[$field.'_to']);
+            }
+        }
+
+        if (array_key_exists('birth_month', $criteria)) {
+            $query->whereMonth('birth_date', $criteria['birth_month']);
+        }
+
+        if (array_key_exists('conversion_month', $criteria)) {
+            $query->where('conversion_month', $criteria['conversion_month']);
+        }
+
+        if (array_key_exists('baptism_month', $criteria)) {
+            $query->where('baptism_month', $criteria['baptism_month']);
+        }
+
+        if (! empty($criteria['search'])) {
+            $search = $criteria['search'];
+            $query->where(function ($query) use ($search) {
+                foreach (self::SEARCHABLE_FIELDS as $index => $field) {
+                    $method = $index === 0 ? 'where' : 'orWhere';
+                    $query->{$method}($field, 'like', "%{$search}%");
+                }
+            });
+        }
+
+        return $query;
+    }
+
+    private function normalizedMemberFilters(Request $request): array
+    {
+        $request->validate($this->memberFilterRules($request));
+
+        $filters = [];
+
+        foreach (self::EXACT_FILTER_FIELDS as $field) {
+            if ($request->filled($field)) {
+                $filters[$field] = $field === 'gender'
+                    ? $this->normalizeGender($request->input($field))
+                    : $request->input($field);
+            }
+        }
+
+        foreach (self::BOOLEAN_FILTER_FIELDS as $field) {
+            if ($request->has($field) && $request->input($field) !== null && $request->input($field) !== '') {
+                $filters[$field] = $request->boolean($field);
+            }
+        }
+
+        foreach (self::NUMERIC_FILTER_FIELDS as $field) {
+            foreach ([$field, $field.'_min', $field.'_max'] as $key) {
+                if ($request->filled($key)) {
+                    $filters[$key] = (int) $request->input($key);
+                }
+            }
+        }
+
+        foreach (self::DATE_FILTER_FIELDS as $field) {
+            foreach ([$field, $field.'_from', $field.'_to'] as $key) {
+                if ($request->filled($key)) {
+                    $filters[$key] = $request->input($key);
+                }
+            }
+        }
+
+        $aliasMap = [
+            'zone' => 'residential_zone',
+            'date_from' => 'created_at_from',
+            'from_date' => 'created_at_from',
+            'date_to' => 'created_at_to',
+            'to_date' => 'created_at_to',
+        ];
+
+        foreach ($aliasMap as $alias => $target) {
+            if ($request->filled($alias) && ! array_key_exists($target, $filters)) {
+                $filters[$target] = $request->input($alias);
+            }
         }
 
         $birthMonth = $request->input('birth_month');
@@ -138,29 +381,118 @@ class MembersController extends Controller
             $birthMonth = now()->month;
         }
         if ($birthMonth) {
-            $query->whereMonth('birth_date', $birthMonth);
-        }
-
-        $fromDate = $request->input('from_date', $request->input('date_from'));
-        $toDate = $request->input('to_date', $request->input('date_to'));
-        if (filled($fromDate)) {
-            $query->whereDate('created_at', '>=', $fromDate);
-        }
-        if (filled($toDate)) {
-            $query->whereDate('created_at', '<=', $toDate);
+            $filters['birth_month'] = (int) $birthMonth;
         }
 
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($query) use ($search) {
-                $query->where('full_name', 'like', "%{$search}%")
-                    ->orWhere('membership_number', 'like', "%{$search}%")
-                    ->orWhere('phone_number', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
-            });
+            $filters['search'] = trim($request->input('search'));
         }
 
-        return $query;
+        return $filters;
+    }
+
+    private function memberFilterRules(Request $request): array
+    {
+        $rules = [
+            'gender' => 'nullable|in:M,F,Mwanaume,Mwanamke',
+            'birth_month' => 'nullable|integer|between:1,12',
+            'birthdays_this_month' => 'nullable|boolean',
+            'zone' => 'nullable|string|max:255',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date',
+            'search' => 'nullable|string|max:255',
+        ];
+
+        foreach (array_diff(self::EXACT_FILTER_FIELDS, ['gender']) as $field) {
+            $rules[$field] = 'nullable|string|max:255';
+        }
+
+        foreach (self::BOOLEAN_FILTER_FIELDS as $field) {
+            $rules[$field] = 'nullable|boolean';
+        }
+
+        foreach (self::NUMERIC_FILTER_FIELDS as $field) {
+            $rules[$field] = 'nullable|integer';
+            $rules[$field.'_min'] = 'nullable|integer';
+            $rules[$field.'_max'] = 'nullable|integer';
+        }
+
+        foreach (self::DATE_FILTER_FIELDS as $field) {
+            $rules[$field] = 'nullable|date';
+            $rules[$field.'_from'] = 'nullable|date';
+            $rules[$field.'_to'] = 'nullable|date';
+        }
+
+        return $rules;
+    }
+
+    private function groupableCriteria(array $criteria): array
+    {
+        return collect($criteria)
+            ->except([
+                'search',
+                'created_at',
+                'created_at_from',
+                'created_at_to',
+            ])
+            ->filter(fn ($value) => $value !== null && $value !== '')
+            ->all();
+    }
+
+    private function applyExactFilter($query, string $field, mixed $value): void
+    {
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $query->where($field, $value);
+    }
+
+    private function normalizeGender(?string $gender): ?string
+    {
+        return match ($gender) {
+            'Mwanaume' => 'M',
+            'Mwanamke' => 'F',
+            default => $gender,
+        };
+    }
+
+    private function normalizeMembershipNumber(string|int $number): string
+    {
+        return str_pad((int) preg_replace('/\D/', '', (string) $number), 4, '0', STR_PAD_LEFT);
+    }
+
+    private function assignMemberToMatchingGroups(Member $member): array
+    {
+        if ($member->membership_status !== 'active') {
+            return [];
+        }
+
+        $matched = [];
+
+        foreach (Group::whereNotNull('filter_criteria')->get() as $group) {
+            $criteria = $group->filter_criteria ?: [];
+            if ($criteria === [] || ! $this->memberMatchesCriteria($member, $criteria)) {
+                continue;
+            }
+
+            $group->members()->syncWithoutDetaching([$member->id]);
+            $matched[] = [
+                'id' => $group->id,
+                'name' => $group->name,
+            ];
+        }
+
+        return $matched;
+    }
+
+    private function memberMatchesCriteria(Member $member, array $criteria): bool
+    {
+        return $this->filteredMembersQuery(new Request(), $criteria)
+            ->whereKey($member->id)
+            ->exists();
     }
 
     /**
@@ -576,12 +908,14 @@ class MembersController extends Controller
         });
 
         $this->notifyMember($member);
+        $autoAssignedGroups = $this->assignMemberToMatchingGroups($member->fresh());
 
         return response()->json([
             'status' => 'success',
             'message' => 'User authorized as member successfully, notifications sent.',
             'member' => $member,
             'user' => $user,
+            'auto_assigned_groups' => $autoAssignedGroups,
         ]);
     }
 
@@ -607,11 +941,13 @@ class MembersController extends Controller
         ]);
 
         $this->notifyMember($member);
+        $autoAssignedGroups = $this->assignMemberToMatchingGroups($member->fresh());
 
         return response()->json([
             'status' => 'success',
             'message' => 'Member activated successfully. Notifications sent.',
             'member' => $member->fresh()->load('user'),
+            'auto_assigned_groups' => $autoAssignedGroups,
         ]);
     }
 

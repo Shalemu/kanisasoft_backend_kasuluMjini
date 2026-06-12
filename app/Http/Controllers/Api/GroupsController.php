@@ -64,6 +64,9 @@ class GroupsController extends Controller
             'group' => [
                 'id' => $group->id,
                 'name' => $group->name,
+                'leader_id' => $group->leader_id,
+                'whatsapp_link' => $group->whatsapp_link,
+                'filter_criteria' => $group->filter_criteria,
                 'members_count' => $members->count(),
             ],
             'members' => $members,
@@ -94,6 +97,7 @@ class GroupsController extends Controller
                 'name' => $group->name,
                 'leader_id' => $group->leader_id,
                 'whatsapp_link' => $group->whatsapp_link,
+                'filter_criteria' => $group->filter_criteria,
                 'created_at' => $group->created_at,
                 'updated_at' => $group->updated_at,
             ],
@@ -117,6 +121,7 @@ public function store(Request $request)
         'name' => 'required|string|max:255',
         'leader_membership_number' => 'nullable|string',
         'whatsapp_link' => 'nullable|url',
+        'filter_criteria' => 'nullable|array',
     ]);
 
     if ($validator->fails()) {
@@ -156,6 +161,7 @@ public function store(Request $request)
         'name' => $request->name,
         'leader_id' => $leaderId,
         'whatsapp_link' => $request->whatsapp_link,
+        'filter_criteria' => $request->input('filter_criteria'),
     ]);
 
     return response()->json([
@@ -184,6 +190,7 @@ public function update(Request $request, int $id)
         'name' => 'sometimes|required|string|max:255',
         'leader_membership_number' => 'nullable|string',
         'whatsapp_link' => 'nullable|url', // ✅ WhatsApp link is nullable
+        'filter_criteria' => 'nullable|array',
     ]);
 
     if ($validator->fails()) {
@@ -231,6 +238,10 @@ public function update(Request $request, int $id)
     //  Update or set WhatsApp link
     if ($request->has('whatsapp_link')) {
         $group->whatsapp_link = $request->whatsapp_link; // can be null if empty
+    }
+
+    if ($request->has('filter_criteria')) {
+        $group->filter_criteria = $request->input('filter_criteria');
     }
 
     $group->save();
