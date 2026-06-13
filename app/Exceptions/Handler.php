@@ -6,6 +6,7 @@ use Throwable;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class Handler extends ExceptionHandler
@@ -17,6 +18,8 @@ class Handler extends ExceptionHandler
      */
     protected $dontFlash = [
         'current_password',
+        'new_password',
+        'new_password_confirmation',
         'password',
         'password_confirmation',
     ];
@@ -56,6 +59,19 @@ class Handler extends ExceptionHandler
     {
         // If this is an API request → always return JSON
         if ($request->expectsJson()) {
+            if ($e instanceof ValidationException) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+
+            if ($e instanceof AuthenticationException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthenticated.',
+                ], 401);
+            }
 
             $statusCode = 500;
 

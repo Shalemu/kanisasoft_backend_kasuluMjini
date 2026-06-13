@@ -118,7 +118,7 @@ class AuthPaths
 
     /**
      * @OA\Post(
-     *     path="/api/change-password",
+     *     path="/api/user/change-password",
      *     tags={"Authentication"},
      *     summary="Change the authenticated user's password",
      *     security={{"bearerAuth": {}}},
@@ -136,9 +136,8 @@ class AuthPaths
      *     ),
      *
      *     @OA\Response(response=200, description="Password changed", @OA\JsonContent(ref="#/components/schemas/ApiSuccess")),
-     *     @OA\Response(response=400, description="Current password is incorrect", @OA\JsonContent(ref="#/components/schemas/ApiError")),
      *     @OA\Response(response=401, description="Unauthenticated", @OA\JsonContent(ref="#/components/schemas/ApiError")),
-     *     @OA\Response(response=422, description="Validation error", @OA\JsonContent(ref="#/components/schemas/ApiError"))
+     *     @OA\Response(response=422, description="Validation error or current password is incorrect", @OA\JsonContent(ref="#/components/schemas/ApiError"))
      * )
      */
     public function changePassword(): void {}

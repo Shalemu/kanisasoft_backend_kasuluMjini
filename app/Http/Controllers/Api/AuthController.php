@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -676,52 +677,54 @@ class AuthController extends Controller
     /**
      * CHANGE PASSWORD
      */
-public function changePassword(Request $request)
-{
-    $request->validate([
-        'current_password' => ['required', 'string'],
-        'new_password' => ['required', 'string', 'min:6', 'confirmed'],
-    ], [
-        'current_password.required' => 'Password ya sasa inahitajika.',
-        'new_password.required' => 'Password mpya inahitajika.',
-        'new_password.min' => 'Password mpya lazima iwe na angalau herufi 6.',
-        'new_password.confirmed' => 'Uthibitisho wa password haujalingana.',
-    ]);
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => ['required', 'string'],
+            'new_password' => [
+                'required',
+                'string',
+                'min:6',
+                'different:current_password',
+                'regex:/[A-Za-z]/',
+                'regex:/[0-9]/',
+                'regex:/[^A-Za-z0-9]/',
+            ],
+            'new_password_confirmation' => ['required', 'string', 'same:new_password'],
+        ], [
+            'current_password.required' => 'Password ya sasa inahitajika.',
+            'new_password.required' => 'Password mpya inahitajika.',
+            'new_password.min' => 'Password mpya lazima iwe na angalau herufi 6.',
+            'new_password.different' => 'Password mpya haiwezi kufanana na password ya sasa.',
+            'new_password.regex' => 'Password mpya lazima iwe na herufi, namba, na alama maalum.',
+            'new_password_confirmation.required' => 'Uthibitisho wa password mpya unahitajika.',
+            'new_password_confirmation.same' => 'Uthibitisho wa password haujalingana.',
+        ]);
 
-    $user = $request->user();
+        $user = $request->user();
 
-    if (!$user) {
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Mtumiaji hajathibitishwa.',
+            ], 401);
+        }
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Password ya sasa si sahihi.'],
+            ]);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->new_password),
+        ]);
+
         return response()->json([
-            'status' => 'error',
-            'message' => 'Mtumiaji hajathibitishwa.',
-        ], 401);
+            'status' => 'success',
+            'message' => 'Password imebadilishwa kikamilifu. Tafadhali ingia tena.',
+        ]);
     }
-
-    // Verify current password
-    if (!Hash::check($request->current_password, $user->password)) {
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Password ya sasa si sahihi.',
-        ], 400);
-    }
-
-    // Prevent using the same password
-    if (Hash::check($request->new_password, $user->password)) {
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Password mpya haiwezi kufanana na password ya sasa.',
-        ], 422);
-    }
-
-    $user->update([
-        'password' => Hash::make($request->new_password),
-    ]);
-
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Password imebadilishwa kikamilifu.',
-    ]);
-}
     /**
      * LOGOUT
      */
