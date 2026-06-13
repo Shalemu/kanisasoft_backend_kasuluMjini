@@ -679,8 +679,13 @@ class AuthController extends Controller
 public function changePassword(Request $request)
 {
     $request->validate([
-        'current_password' => 'required|string',
-        'new_password' => 'required|string|min:6|confirmed',
+        'current_password' => ['required', 'string'],
+        'new_password' => ['required', 'string', 'min:6', 'confirmed'],
+    ], [
+        'current_password.required' => 'Password ya sasa inahitajika.',
+        'new_password.required' => 'Password mpya inahitajika.',
+        'new_password.min' => 'Password mpya lazima iwe na angalau herufi 6.',
+        'new_password.confirmed' => 'Uthibitisho wa password haujalingana.',
     ]);
 
     $user = $request->user();
@@ -688,15 +693,24 @@ public function changePassword(Request $request)
     if (!$user) {
         return response()->json([
             'status' => 'error',
-            'message' => 'Unauthenticated user',
+            'message' => 'Mtumiaji hajathibitishwa.',
         ], 401);
     }
 
+    // Verify current password
     if (!Hash::check($request->current_password, $user->password)) {
         return response()->json([
             'status' => 'error',
-            'message' => 'Current password is incorrect',
+            'message' => 'Password ya sasa si sahihi.',
         ], 400);
+    }
+
+    // Prevent using the same password
+    if (Hash::check($request->new_password, $user->password)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Password mpya haiwezi kufanana na password ya sasa.',
+        ], 422);
     }
 
     $user->update([
@@ -705,7 +719,7 @@ public function changePassword(Request $request)
 
     return response()->json([
         'status' => 'success',
-        'message' => 'Password changed successfully',
+        'message' => 'Password imebadilishwa kikamilifu.',
     ]);
 }
     /**
