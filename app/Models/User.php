@@ -10,6 +10,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use DateTimeInterface;
 use App\Notifications\ResetPasswordNotification;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable implements MustVerifyEmailContract
 {
@@ -40,11 +41,16 @@ class User extends Authenticatable implements MustVerifyEmailContract
         'disability_description',
         'password',
         'role', // SYSTEM role only (admin | kiongozi | mshirika)
+        'profile_picture_path',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+    ];
+
+    protected $appends = [
+        'profile_picture_url',
     ];
 
     protected $casts = [
@@ -57,6 +63,15 @@ class User extends Authenticatable implements MustVerifyEmailContract
     protected function serializeDate(DateTimeInterface $date)
     {
         return $date->format('Y-m-d');
+    }
+
+    public function getProfilePictureUrlAttribute(): ?string
+    {
+        if (! $this->profile_picture_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->profile_picture_path);
     }
 
     // -------------------------

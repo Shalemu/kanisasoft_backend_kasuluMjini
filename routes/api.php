@@ -160,6 +160,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/dashboard-verse', [UserSettingsController::class, 'getVerse']);
     Route::post('/dashboard-verse', [UserSettingsController::class, 'saveVerse']);
+    Route::get('/admin/profile', [UserSettingsController::class, 'profile']);
+    Route::post('/admin/profile', [UserSettingsController::class, 'updateProfile']);
+    Route::get('/admin/account-settings', [UserSettingsController::class, 'getAccountSettings']);
+    Route::put('/admin/account-settings', [UserSettingsController::class, 'updateAccountSettings']);
+    Route::patch('/admin/account-settings', [UserSettingsController::class, 'updateAccountSettings']);
+    Route::get('/admin/support', [UserSettingsController::class, 'support']);
+    Route::get('/admin/support/requests', [UserSettingsController::class, 'supportRequests']);
+    Route::post('/admin/support/requests', [UserSettingsController::class, 'createSupportRequest']);
 
     // Daily Word
     Route::get('/daily-words/today', [DailyWordController::class, 'today']);
