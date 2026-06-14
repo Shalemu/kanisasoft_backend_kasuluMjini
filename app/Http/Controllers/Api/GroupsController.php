@@ -10,6 +10,17 @@ use Illuminate\Support\Facades\Validator;
 
 class GroupsController extends Controller
 {
+    private function groupStats($members): array
+    {
+        return [
+            'total_members' => $members->count(),
+            'active_members' => $members->where('membership_status', 'active')->count(),
+            'pending_members' => $members->where('membership_status', 'pending')->count(),
+            'by_gender' => $members->groupBy(fn ($member) => $member->gender ?? 'unknown')->map->count()->all(),
+            'by_zone' => $members->groupBy(fn ($member) => $member->residential_zone ?? 'Haijajazwa')->map->count()->all(),
+        ];
+    }
+
     /**
      * Normalize membership number (1 -> 0001)
      */
@@ -56,8 +67,10 @@ class GroupsController extends Controller
                 'email' => $member->email,
                 'gender' => $member->gender,
                 'residential_zone' => $member->residential_zone,
+                'membership_status' => $member->membership_status,
             ];
         });
+        $statistics = $this->groupStats($members);
 
         return response()->json([
             'status' => 'success',
@@ -70,6 +83,9 @@ class GroupsController extends Controller
                 'members_count' => $members->count(),
             ],
             'members' => $members,
+            'statistics' => $statistics,
+            'stats' => $statistics,
+            'total_members' => $statistics['total_members'],
         ]);
     }
 
@@ -90,6 +106,8 @@ class GroupsController extends Controller
             ], 404);
         }
 
+        $statistics = $this->groupStats($group->members);
+
         return response()->json([
             'status' => 'success',
             'group' => [
@@ -98,6 +116,7 @@ class GroupsController extends Controller
                 'leader_id' => $group->leader_id,
                 'whatsapp_link' => $group->whatsapp_link,
                 'filter_criteria' => $group->filter_criteria,
+                'members_count' => $group->members_count,
                 'created_at' => $group->created_at,
                 'updated_at' => $group->updated_at,
             ],
@@ -105,6 +124,8 @@ class GroupsController extends Controller
             'leaders' => $group->leader ? [$group->leader] : [],
             'leader' => $group->leader,
             'total_members' => $group->members_count,
+            'statistics' => $statistics,
+            'stats' => $statistics,
         ]);
     }
 

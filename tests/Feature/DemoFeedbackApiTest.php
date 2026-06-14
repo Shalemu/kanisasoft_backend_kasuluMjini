@@ -383,7 +383,40 @@ class DemoFeedbackApiTest extends TestCase
             ->assertJsonPath('group.name', 'Youth')
             ->assertJsonPath('leaders.0.id', $leader->id)
             ->assertJsonPath('total_members', 2)
+            ->assertJsonPath('statistics.total_members', 2)
+            ->assertJsonPath('statistics.active_members', 2)
             ->assertJsonCount(2, 'members');
+
+        $this->getJson("/api/groups/{$group->id}/members")
+            ->assertOk()
+            ->assertJsonPath('group.name', 'Youth')
+            ->assertJsonPath('total_members', 2)
+            ->assertJsonPath('statistics.total_members', 2)
+            ->assertJsonCount(2, 'members');
+    }
+
+    public function test_member_update_accepts_255_phone_number_format(): void
+    {
+        $member = $this->createMember([
+            'phone_number' => '0712345690',
+            'email' => 'phone-update-original@example.com',
+        ]);
+
+        $this->putJson("/api/members/{$member->id}", [
+            'full_name' => $member->full_name,
+            'gender' => $member->gender,
+            'phone_number' => '255712345699',
+            'whatsapp_number' => '255712345698',
+        ])
+            ->assertOk()
+            ->assertJsonPath('member.phone_number', '255712345699')
+            ->assertJsonPath('member.whatsapp_number', '255712345698');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $member->user_id,
+            'phone' => '255712345699',
+            'whatsapp_number' => '255712345698',
+        ]);
     }
 
     public function test_announcements_and_events_support_new_crud_contract(): void

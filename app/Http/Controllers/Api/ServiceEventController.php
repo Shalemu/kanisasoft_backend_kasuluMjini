@@ -158,6 +158,7 @@ class ServiceEventController extends Controller
         return response()->json([
             'status' => 'success',
             'service_event' => $serviceEvent,
+            'edit_data' => $serviceEvent->toArray(),
         ]);
     }
 

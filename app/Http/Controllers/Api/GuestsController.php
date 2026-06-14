@@ -177,6 +177,7 @@ class GuestsController extends Controller
         return response()->json([
             'status' => 'success',
             'guest' => $guest,
+            'edit_data' => $guest->toArray(),
         ]);
     }
 

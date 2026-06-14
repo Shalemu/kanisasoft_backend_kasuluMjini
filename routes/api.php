@@ -93,8 +93,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Groups
     Route::get('/groups/filter', [GroupsController::class, 'filterByZone']);
-    Route::apiResource('groups', GroupsController::class);
     Route::get('/groups/{id}/members', [GroupsController::class, 'members']);
+    Route::apiResource('groups', GroupsController::class);
     Route::post('/groups/{group}/assign-leader', [GroupsController::class, 'assignLeader']);
     Route::get('/groups/{id}/members/search', [GroupsController::class, 'searchGroupMembers']);
 

@@ -45,6 +45,24 @@ class ServiceEventAndGuestApiTest extends TestCase
         ]);
     }
 
+    public function test_service_event_show_returns_edit_payload(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $event = ServiceEvent::create([
+            'title' => 'Ibada ya Pili',
+            'service_name' => 'Ibada ya Pili',
+            'date' => '2026-06-05',
+            'preacher' => 'Mhubiri',
+        ]);
+
+        $this->getJson("/api/service-events/{$event->id}")
+            ->assertOk()
+            ->assertJsonPath('service_event.id', $event->id)
+            ->assertJsonPath('edit_data.title', 'Ibada ya Pili')
+            ->assertJsonPath('edit_data.service_name', 'Ibada ya Pili');
+    }
+
     public function test_guests_index_filters_by_date_and_returns_summary(): void
     {
         Sanctum::actingAs(User::factory()->create());
@@ -70,5 +88,23 @@ class ServiceEventAndGuestApiTest extends TestCase
             ->assertJsonPath('summary.total_prayer', 1)
             ->assertJsonCount(1, 'guests')
             ->assertJsonPath('guests.0.full_name', 'Guest One');
+    }
+
+    public function test_guest_show_returns_edit_payload(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $guest = Guest::create([
+            'full_name' => 'Guest One',
+            'church_origin' => 'RGCM',
+            'visit_date' => '2026-06-03',
+            'prayer' => true,
+        ]);
+
+        $this->getJson("/api/guests/{$guest->id}")
+            ->assertOk()
+            ->assertJsonPath('guest.id', $guest->id)
+            ->assertJsonPath('edit_data.full_name', 'Guest One')
+            ->assertJsonPath('edit_data.prayer', true);
     }
 }

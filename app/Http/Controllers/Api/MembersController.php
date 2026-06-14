@@ -689,9 +689,34 @@ class MembersController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $formattedPhone = preg_replace('/\D/', '', $request->phone_number ?? '');
-        if ($formattedPhone && str_starts_with($formattedPhone, '0')) {
-            $formattedPhone = '255'.substr($formattedPhone, 1);
+        $formattedPhone = null;
+        if ($request->filled('phone_number')) {
+            $formattedPhone = $this->formatTanzaniaPhone($request->phone_number);
+
+            if (! $this->isValidTanzaniaPhone($formattedPhone)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Namba ya simu si sahihi. Tumia mfumo wa 0712345678 au 255712345678.',
+                    'errors' => [
+                        'phone_number' => ['Namba ya simu si sahihi.'],
+                    ],
+                ], 422);
+            }
+        }
+
+        $formattedWhatsapp = null;
+        if ($request->filled('whatsapp_number')) {
+            $formattedWhatsapp = $this->formatTanzaniaPhone($request->whatsapp_number);
+
+            if (! $this->isValidTanzaniaPhone($formattedWhatsapp)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Namba ya WhatsApp si sahihi. Tumia mfumo wa 0712345678 au 255712345678.',
+                    'errors' => [
+                        'whatsapp_number' => ['Namba ya WhatsApp si sahihi.'],
+                    ],
+                ], 422);
+            }
         }
 
         if ($request->filled('membership_number')) {
@@ -745,6 +770,7 @@ class MembersController extends Controller
                     'residential_ward' => $request->residential_ward ?? $user->residential_ward,
                     'residential_street' => $request->residential_street ?? $user->residential_street,
                     'phone' => $formattedPhone ?: $user->phone,
+                    'whatsapp_number' => $formattedWhatsapp ?: $user->whatsapp_number,
                     'email' => $request->email ?? $user->email,
                     'has_disability' => $request->has_disability ?? $user->has_disability,
                     'disability_description' => $request->disability_description ?? $user->disability_description,
@@ -766,6 +792,7 @@ class MembersController extends Controller
                     'residential_ward' => $request->residential_ward,
                     'residential_street' => $request->residential_street,
                     'phone' => $formattedPhone,
+                    'whatsapp_number' => $formattedWhatsapp,
                     'email' => $request->email,
                     'has_disability' => $request->has_disability ?? false,
                     'disability_description' => $request->disability_description,
@@ -796,6 +823,7 @@ class MembersController extends Controller
                 'residential_ward' => $request->residential_ward ?? $member->residential_ward,
                 'residential_street' => $request->residential_street ?? $member->residential_street,
                 'phone_number' => $formattedPhone ?: $member->phone_number,
+                'whatsapp_number' => $formattedWhatsapp ?: $member->whatsapp_number,
                 'email' => $request->email ?? $member->email,
                 'has_disability' => $request->has_disability ?? $member->has_disability,
                 'disability_description' => $request->disability_description ?? $member->disability_description,
@@ -1237,6 +1265,11 @@ class MembersController extends Controller
         }
 
         return $num;
+    }
+
+    private function isValidTanzaniaPhone(?string $phone): bool
+    {
+        return $phone === null || (bool) preg_match('/^255[0-9]{9}$/', $phone);
     }
 
     /**
