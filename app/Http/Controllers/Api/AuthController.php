@@ -759,10 +759,25 @@ class AuthController extends Controller
     /**
      * ALL USERS
      */
-    public function allUsers()
+    public function allUsers(Request $request)
     {
         try {
-            $members = Member::with(['user', 'groups', 'user.leader.roles'])->get();
+            $search = $request->input('search');
+
+            $memberQuery = Member::with(['user', 'groups', 'user.leader.roles']);
+
+            if (filled($search)) {
+                $memberQuery->where(function ($q) use ($search) {
+                    $q->where('full_name', 'like', "%{$search}%")
+                      ->orWhere('membership_number', 'like', "%{$search}%")
+                      ->orWhereHas('user', fn ($uq) => $uq
+                          ->where('full_name', 'like', "%{$search}%")
+                          ->orWhere('email', 'like', "%{$search}%")
+                          ->orWhere('phone', 'like', "%{$search}%"));
+                });
+            }
+
+            $members = $memberQuery->get();
 
             $users = $members->map(function ($member) {
                 $user = $member->user;
@@ -792,9 +807,18 @@ class AuthController extends Controller
                 ];
             });
 
-            $nonMembers = User::doesntHave('member')
-                ->with('leader.roles') // eager load leader roles for non-members
-                ->get()
+            $nonMemberQuery = User::doesntHave('member')
+                ->with('leader.roles');
+
+            if (filled($search)) {
+                $nonMemberQuery->where(function ($q) use ($search) {
+                    $q->where('full_name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                      ->orWhere('phone', 'like', "%{$search}%");
+                });
+            }
+
+            $nonMembers = $nonMemberQuery->get()
                 ->map(function ($user) {
                     return [
                         'id' => $user->id,

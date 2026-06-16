@@ -16,6 +16,10 @@ class Contribution extends Model
         'giver_name',
         'reference',
         'notes',
+        'member_id',
+        'membership_number',
+        'pledge_amount',
+        'total_paid',
     ];
 
     protected $casts = [

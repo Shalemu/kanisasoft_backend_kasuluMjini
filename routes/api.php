@@ -18,7 +18,11 @@ use App\Http\Controllers\Api\MembersController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\ServiceEventController;
 use App\Http\Controllers\Api\SMSController;
+use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\RasilimaliController;
+use App\Http\Controllers\Api\SadakaController;
 use App\Http\Controllers\Api\UserRoleController;
+use App\Http\Controllers\Api\ZakaController;
 use App\Http\Controllers\Api\UserSettingsController;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
@@ -174,7 +178,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/daily-words/stats', [DailyWordController::class, 'stats']);
     Route::post('/daily-words/bulk', [DailyWordController::class, 'bulkStore']);
     Route::apiResource('daily-words', DailyWordController::class);
+
+    // Rasilimali (Resources)
+    Route::get('/rasilimali', [RasilimaliController::class, 'index']);
+    Route::post('/rasilimali', [RasilimaliController::class, 'store']);
+    Route::delete('/rasilimali/{id}', [RasilimaliController::class, 'destroy']);
+
+    // Fedha Module
+    Route::apiResource('sadaka', SadakaController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('zaka', ZakaController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('invoices', InvoiceController::class)->only(['index', 'store', 'update', 'destroy']);
 });
+
+// File download routes — public so browser can download directly without Bearer token
+Route::get('/rasilimali/{id}/download', [RasilimaliController::class, 'download'])->name('rasilimali.download');
+Route::get('/invoices/{id}/download', [InvoiceController::class, 'download'])->name('invoices.download');
 
 // Leader group actions
 Route::middleware(['auth:sanctum'])->group(function () {

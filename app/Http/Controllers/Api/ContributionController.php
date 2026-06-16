@@ -80,9 +80,20 @@ class ContributionController extends Controller
             'giver_name' => 'nullable|string|max:255',
             'reference' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
+            'member_id' => 'nullable|exists:users,id',
+            'membership_number' => 'nullable|string|max:100',
+            'pledge_amount' => 'nullable|numeric|min:0',
         ])->validate();
 
         $validated['method'] = $validated['method'] ?? 'Cash';
+
+        // Compute total_paid for this member + type
+        if (! empty($validated['member_id']) && ! empty($validated['type'])) {
+            $existingTotal = Contribution::where('member_id', $validated['member_id'])
+                ->where('type', $validated['type'])
+                ->sum('amount');
+            $validated['total_paid'] = (float) $existingTotal + (float) $validated['amount'];
+        }
 
         $contribution = Contribution::create($validated)->fresh(['user']);
 
@@ -135,9 +146,20 @@ class ContributionController extends Controller
             'giver_name' => 'nullable|string|max:255',
             'reference' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
+            'member_id' => 'nullable|exists:users,id',
+            'membership_number' => 'nullable|string|max:100',
+            'pledge_amount' => 'nullable|numeric|min:0',
         ])->validate();
 
         $contribution->update($validated);
+
+        // Recompute total_paid if member_id/type present
+        if (! empty($contribution->member_id) && ! empty($contribution->type)) {
+            $totalPaid = Contribution::where('member_id', $contribution->member_id)
+                ->where('type', $contribution->type)
+                ->sum('amount');
+            $contribution->update(['total_paid' => (float) $totalPaid]);
+        }
         $contribution = $contribution->fresh(['user']);
 
         return response()->json([
@@ -253,6 +275,10 @@ class ContributionController extends Controller
             'payment_method' => $contribution->method,
             'reference' => $contribution->reference,
             'notes' => $contribution->notes,
+            'member_id' => $contribution->member_id,
+            'membership_number' => $contribution->membership_number,
+            'pledge_amount' => $contribution->pledge_amount ? (float) $contribution->pledge_amount : null,
+            'total_paid' => $contribution->total_paid ? (float) $contribution->total_paid : null,
             'giver' => $donorName,
             'created_at' => optional($contribution->created_at)->toISOString(),
             'updated_at' => optional($contribution->updated_at)->toISOString(),
