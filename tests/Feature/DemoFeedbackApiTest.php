@@ -137,6 +137,124 @@ class DemoFeedbackApiTest extends TestCase
         ]);
     }
 
+    public function test_member_search_filter_matches_normalized_membership_number(): void
+    {
+        $matched = $this->createMember([
+            'full_name' => 'Zero Padded Member',
+            'membership_number' => '0043',
+        ]);
+        $this->createMember([
+            'full_name' => 'Other Member',
+            'membership_number' => '0012',
+        ]);
+
+        $this->getJson('/api/members/search-filter?search=43')
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('members.0.id', $matched->id)
+            ->assertJsonPath('members.0.membership_number', '0043');
+    }
+
+    public function test_group_can_be_created_with_leader_member_id_or_unique_leader_name(): void
+    {
+        $leaderById = $this->createMember([
+            'full_name' => 'Leader By Id',
+            'membership_number' => '0021',
+        ]);
+        $leaderByName = $this->createMember([
+            'full_name' => 'Unique Leader Name',
+            'membership_number' => '0022',
+        ]);
+        $matched = $this->createMember([
+            'full_name' => 'Matched Active Member',
+            'gender' => 'F',
+            'membership_status' => 'active',
+        ]);
+
+        $this->postJson('/api/members/search-filter/groups', [
+            'name' => 'Leader Id Group',
+            'leader_member_id' => $leaderById->id,
+            'gender' => 'Mwanamke',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('group.leader_id', $leaderById->id)
+            ->assertJsonPath('assigned_members_count', 1);
+
+        $this->postJson('/api/members/search-filter/groups', [
+            'name' => 'Leader Name Group',
+            'leader_name' => 'Unique Leader',
+            'gender' => 'Mwanamke',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('group.leader_id', $leaderByName->id)
+            ->assertJsonPath('assigned_members_count', 1);
+
+        $this->assertDatabaseHas('member_group', [
+            'member_id' => $matched->id,
+        ]);
+    }
+
+    public function test_group_creation_requires_specific_member_when_leader_name_matches_multiple_members(): void
+    {
+        $this->createMember(['full_name' => 'Duplicate Leader One']);
+        $this->createMember(['full_name' => 'Duplicate Leader Two']);
+        $this->createMember([
+            'full_name' => 'Matched Active Member',
+            'gender' => 'M',
+            'membership_status' => 'active',
+        ]);
+
+        $this->postJson('/api/members/search-filter/groups', [
+            'name' => 'Ambiguous Leader Group',
+            'leader_name' => 'Duplicate Leader',
+            'gender' => 'Mwanaume',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('status', 'error')
+            ->assertJsonCount(2, 'matches');
+    }
+
+    public function test_users_search_matches_name_and_normalized_membership_number_with_required_identifiers(): void
+    {
+        $matchedByNumberUser = User::factory()->create([
+            'full_name' => 'Number Search User',
+            'role' => 'mshirika',
+        ]);
+        $matchedByNumber = $this->createMember([
+            'user_id' => $matchedByNumberUser->id,
+            'full_name' => 'Number Search Member',
+            'membership_number' => '0043',
+        ]);
+        $matchedByNameUser = User::factory()->create([
+            'full_name' => 'Name Search User',
+            'role' => 'mshirika',
+        ]);
+        $matchedByName = $this->createMember([
+            'user_id' => $matchedByNameUser->id,
+            'full_name' => 'Alpha Search Member',
+            'membership_number' => '0099',
+        ]);
+
+        $this->getJson('/api/users?search=43')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $matchedByNumberUser->id,
+                'user_id' => $matchedByNumberUser->id,
+                'member_id' => $matchedByNumber->id,
+                'full_name' => 'Number Search Member',
+                'membership_number' => '0043',
+            ]);
+
+        $this->getJson('/api/users?search=Alpha')
+            ->assertOk()
+            ->assertJsonFragment([
+                'user_id' => $matchedByNameUser->id,
+                'member_id' => $matchedByName->id,
+                'full_name' => 'Alpha Search Member',
+                'membership_number' => '0099',
+            ]);
+    }
+
     public function test_approved_member_is_auto_assigned_to_matching_filtered_group(): void
     {
         $existing = $this->createMember([

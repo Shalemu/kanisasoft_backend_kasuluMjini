@@ -774,6 +774,8 @@ class AuthController extends Controller
                           ->where('full_name', 'like', "%{$search}%")
                           ->orWhere('email', 'like', "%{$search}%")
                           ->orWhere('phone', 'like', "%{$search}%"));
+
+                    $this->orWhereNormalizedMembershipNumberLike($q, $search);
                 });
             }
 
@@ -784,6 +786,7 @@ class AuthController extends Controller
 
                 return [
                     'id' => $user->id,
+                    'user_id' => $user->id,
                     'full_name' => $member->full_name ?? $user->full_name,
                     'email' => $member->email ?? $user->email,
                     'phone' => $member->phone_number ?? $user->phone,
@@ -822,6 +825,7 @@ class AuthController extends Controller
                 ->map(function ($user) {
                     return [
                         'id' => $user->id,
+                        'user_id' => $user->id,
                         'full_name' => $user->full_name,
                         'email' => $user->email,
                         'phone' => $user->phone,
@@ -848,6 +852,33 @@ class AuthController extends Controller
                 'message' => 'Server error: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    private function normalizedMembershipSearchTerm(string $search): ?string
+    {
+        if (! preg_match('/^\d+$/', trim($search))) {
+            return null;
+        }
+
+        $normalized = ltrim(trim($search), '0');
+
+        return $normalized === '' ? '0' : $normalized;
+    }
+
+    private function orWhereNormalizedMembershipNumberLike($query, string $search): void
+    {
+        $normalizedSearch = $this->normalizedMembershipSearchTerm($search);
+
+        if ($normalizedSearch === null) {
+            return;
+        }
+
+        $driver = DB::connection()->getDriverName();
+        $expression = $driver === 'mysql'
+            ? "COALESCE(NULLIF(TRIM(LEADING '0' FROM membership_number), ''), '0')"
+            : "COALESCE(NULLIF(ltrim(membership_number, '0'), ''), '0')";
+
+        $query->orWhereRaw($expression.' like ?', ['%'.$normalizedSearch.'%']);
     }
 
     public function pendingRegistrations(Request $request)

@@ -210,14 +210,16 @@ class MembersController extends Controller
         $request->validate([
             'name' => 'required|string|max:255|unique:groups,name',
             'leader_membership_number' => 'nullable|string',
+            'leader_member_id' => 'nullable|integer|exists:members,id',
             'leader_id' => 'nullable|integer|exists:members,id',
+            'leader_name' => 'nullable|string|max:255',
             'whatsapp_link' => 'nullable|url',
         ]);
 
         $criteria = $this->normalizedMemberFilters($request);
         $groupCriteria = $this->groupableCriteria($criteria);
 
-        $leaderId = $request->integer('leader_id') ?: null;
+        $leaderId = $request->integer('leader_member_id') ?: ($request->integer('leader_id') ?: null);
         if ($request->filled('leader_membership_number')) {
             $leader = Member::where('membership_number', $this->normalizeMembershipNumber($request->leader_membership_number))->first();
             if (! $leader) {
@@ -227,6 +229,31 @@ class MembersController extends Controller
                 ], 404);
             }
             $leaderId = $leader->id;
+        }
+        if (! $leaderId && $request->filled('leader_name')) {
+            $leaders = Member::where('full_name', 'like', '%'.trim($request->leader_name).'%')->get();
+
+            if ($leaders->count() > 1) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Zaidi ya mshirika mmoja amepatikana kwa jina hilo. Tafadhali chagua mshirika maalum.',
+                    'matches' => $leaders->map(fn ($member) => [
+                        'id' => $member->id,
+                        'member_id' => $member->id,
+                        'full_name' => $member->full_name,
+                        'membership_number' => $member->membership_number,
+                    ]),
+                ], 422);
+            }
+
+            if ($leaders->isEmpty()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Hakuna mshirika aliyepatikana kwa jina hilo.',
+                ], 404);
+            }
+
+            $leaderId = $leaders->first()->id;
         }
 
         $memberIds = $this->filteredMembersQuery($request, $criteria)
@@ -320,6 +347,8 @@ class MembersController extends Controller
                     $method = $index === 0 ? 'where' : 'orWhere';
                     $query->{$method}($field, 'like', "%{$search}%");
                 }
+
+                $this->orWhereNormalizedMembershipNumberLike($query, $search);
             });
         }
 
@@ -462,6 +491,33 @@ class MembersController extends Controller
     private function normalizeMembershipNumber(string|int $number): string
     {
         return str_pad((int) preg_replace('/\D/', '', (string) $number), 4, '0', STR_PAD_LEFT);
+    }
+
+    private function normalizedMembershipSearchTerm(string $search): ?string
+    {
+        if (! preg_match('/^\d+$/', trim($search))) {
+            return null;
+        }
+
+        $normalized = ltrim(trim($search), '0');
+
+        return $normalized === '' ? '0' : $normalized;
+    }
+
+    private function orWhereNormalizedMembershipNumberLike($query, string $search): void
+    {
+        $normalizedSearch = $this->normalizedMembershipSearchTerm($search);
+
+        if ($normalizedSearch === null) {
+            return;
+        }
+
+        $driver = DB::connection()->getDriverName();
+        $expression = $driver === 'mysql'
+            ? "COALESCE(NULLIF(TRIM(LEADING '0' FROM membership_number), ''), '0')"
+            : "COALESCE(NULLIF(ltrim(membership_number, '0'), ''), '0')";
+
+        $query->orWhereRaw($expression.' like ?', ['%'.$normalizedSearch.'%']);
     }
 
     private function assignMemberToMatchingGroups(Member $member): array
