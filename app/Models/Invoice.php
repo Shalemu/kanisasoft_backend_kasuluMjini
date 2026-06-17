@@ -12,6 +12,14 @@ class Invoice extends Model
 
     protected $fillable = [
         'title',
+        'invoice_number',
+        'invoice_date',
+        'due_date',
+        'sub_total',
+        'credit',
+        'total',
+        'status',
+        'transactions',
         'file_path',
         'file_type',
         'uploaded_by_id',
@@ -20,6 +28,15 @@ class Invoice extends Model
 
     protected $appends = [
         'file_url',
+    ];
+
+    protected $casts = [
+        'invoice_date' => 'date',
+        'due_date' => 'date',
+        'sub_total' => 'decimal:2',
+        'credit' => 'decimal:2',
+        'total' => 'decimal:2',
+        'transactions' => 'array',
     ];
 
     public function getFileUrlAttribute(): ?string
