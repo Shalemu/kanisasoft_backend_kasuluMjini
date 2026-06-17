@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\ServiceEventController;
 use App\Http\Controllers\Api\SMSController;
 use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\BillingController;
+use App\Http\Controllers\Api\FinanceReportController;
 use App\Http\Controllers\Api\RasilimaliController;
 use App\Http\Controllers\Api\SadakaController;
 use App\Http\Controllers\Api\UserRoleController;
@@ -180,18 +182,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('daily-words', DailyWordController::class);
 
     // Rasilimali (Resources)
-    Route::get('/rasilimali', [RasilimaliController::class, 'index']);
-    Route::post('/rasilimali', [RasilimaliController::class, 'store']);
-    Route::delete('/rasilimali/{id}', [RasilimaliController::class, 'destroy']);
+    Route::apiResource('resources', RasilimaliController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
+    // Legacy alias — frontend still uses /rasilimali
+    Route::apiResource('rasilimali', RasilimaliController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
 
     // Fedha Module
     Route::apiResource('sadaka', SadakaController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('zaka', ZakaController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('invoices', InvoiceController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('invoices', InvoiceController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
+    Route::apiResource('billing', BillingController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
+
+    // Finance Report (aggregated)
+    Route::get('/finance-report', [FinanceReportController::class, 'index']);
 });
 
-// File download routes — public so browser can download directly without Bearer token
+// File download/view routes — public so browser can access directly without Bearer token
+Route::get('/resources/{id}/view', [RasilimaliController::class, 'view'])->name('resources.view');
+Route::get('/resources/{id}/download', [RasilimaliController::class, 'download'])->name('resources.download');
+Route::get('/rasilimali/{id}/view', [RasilimaliController::class, 'view']);
 Route::get('/rasilimali/{id}/download', [RasilimaliController::class, 'download'])->name('rasilimali.download');
+Route::get('/invoices/{id}/view', [InvoiceController::class, 'view'])->name('invoices.view');
 Route::get('/invoices/{id}/download', [InvoiceController::class, 'download'])->name('invoices.download');
 
 // Leader group actions

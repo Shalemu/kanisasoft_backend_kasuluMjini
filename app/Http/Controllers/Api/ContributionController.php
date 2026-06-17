@@ -73,19 +73,24 @@ class ContributionController extends Controller
 
         $validated = validator($payload, [
             'date' => 'required|date',
+            'contribution_date' => 'nullable|date',
             'type' => 'required|string|max:255',
+            'category' => 'nullable|string|max:255',
             'amount' => 'required|numeric|gt:0',
             'method' => 'nullable|string|max:255',
+            'payment_method' => 'nullable|string|in:Taslimu,Simu ya Pesa,Benki,Hundi,Cash,Mobile Money,Bank Transfer,Cheque',
             'user_id' => 'nullable|exists:users,id',
             'giver_name' => 'nullable|string|max:255',
-            'reference' => 'nullable|string|max:255',
-            'notes' => 'nullable|string',
+            'donor_name' => 'nullable|string|max:255',
             'member_id' => 'nullable|exists:users,id',
+            'member_name' => 'nullable|string|max:255',
             'membership_number' => 'nullable|string|max:100',
             'pledge_amount' => 'nullable|numeric|min:0',
+            'reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
         ])->validate();
 
-        $validated['method'] = $validated['method'] ?? 'Cash';
+        $validated['method'] = $validated['method'] ?? $validated['payment_method'] ?? 'Taslimu';
 
         // Compute total_paid for this member + type
         if (! empty($validated['member_id']) && ! empty($validated['type'])) {
@@ -139,16 +144,21 @@ class ContributionController extends Controller
 
         $validated = validator($payload, [
             'date' => 'sometimes|required|date',
+            'contribution_date' => 'nullable|date',
             'type' => 'sometimes|required|string|max:255',
+            'category' => 'nullable|string|max:255',
             'amount' => 'sometimes|required|numeric|gt:0',
             'method' => 'nullable|string|max:255',
+            'payment_method' => 'nullable|string|in:Taslimu,Simu ya Pesa,Benki,Hundi,Cash,Mobile Money,Bank Transfer,Cheque',
             'user_id' => 'nullable|exists:users,id',
             'giver_name' => 'nullable|string|max:255',
-            'reference' => 'nullable|string|max:255',
-            'notes' => 'nullable|string',
+            'donor_name' => 'nullable|string|max:255',
             'member_id' => 'nullable|exists:users,id',
+            'member_name' => 'nullable|string|max:255',
             'membership_number' => 'nullable|string|max:100',
             'pledge_amount' => 'nullable|numeric|min:0',
+            'reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
         ])->validate();
 
         $contribution->update($validated);
@@ -239,18 +249,24 @@ class ContributionController extends Controller
 
         if ($request->has('date') || $request->has('contribution_date')) {
             $data['date'] = $request->input('date', $request->input('contribution_date'));
+            $data['contribution_date'] = $data['date'];
         }
 
         if ($request->has('type') || $request->has('category')) {
             $data['type'] = $request->input('type', $request->input('category'));
+            $data['category'] = $data['type'];
         }
 
         if ($request->has('payment_method') || $request->has('method')) {
             $data['method'] = $request->input('payment_method', $request->input('method'));
+            $data['payment_method'] = $data['method'];
         }
 
-        if ($request->has('donor_name') || $request->has('giver_name')) {
-            $data['giver_name'] = $request->input('donor_name', $request->input('giver_name'));
+        if ($request->has('donor_name') || $request->has('giver_name') || $request->has('member_name')) {
+            $name = $request->input('donor_name', $request->input('giver_name', $request->input('member_name')));
+            $data['giver_name'] = $name;
+            $data['donor_name'] = $name;
+            $data['member_name'] = $name;
         }
 
         return $data;
@@ -259,26 +275,30 @@ class ContributionController extends Controller
     private function formatContribution(Contribution $contribution): array
     {
         $date = optional($contribution->date)->format('Y-m-d');
-        $donorName = $contribution->user?->full_name ?? $contribution->giver_name;
+        $donorName = $contribution->donor_name
+            ?? $contribution->member_name
+            ?? $contribution->user?->full_name
+            ?? $contribution->giver_name;
 
         return [
             'id' => $contribution->id,
             'user_id' => $contribution->user_id,
+            'member_id' => $contribution->member_id,
+            'member_name' => $contribution->member_name ?? $donorName,
+            'membership_number' => $contribution->membership_number,
             'giver_name' => $contribution->giver_name,
             'donor_name' => $donorName,
             'date' => $date,
-            'contribution_date' => $date,
+            'contribution_date' => $contribution->contribution_date ?? $date,
             'type' => $contribution->type,
-            'category' => $contribution->type,
+            'category' => $contribution->category ?? $contribution->type,
             'amount' => (float) $contribution->amount,
             'method' => $contribution->method,
-            'payment_method' => $contribution->method,
-            'reference' => $contribution->reference,
-            'notes' => $contribution->notes,
-            'member_id' => $contribution->member_id,
-            'membership_number' => $contribution->membership_number,
+            'payment_method' => $contribution->payment_method ?? $contribution->method,
             'pledge_amount' => $contribution->pledge_amount ? (float) $contribution->pledge_amount : null,
             'total_paid' => $contribution->total_paid ? (float) $contribution->total_paid : null,
+            'reference' => $contribution->reference,
+            'notes' => $contribution->notes,
             'giver' => $donorName,
             'created_at' => optional($contribution->created_at)->toISOString(),
             'updated_at' => optional($contribution->updated_at)->toISOString(),
