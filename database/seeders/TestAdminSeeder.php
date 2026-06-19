@@ -11,9 +11,9 @@ class TestAdminSeeder extends Seeder
     public function run(): void
     {
         User::updateOrCreate(
-            ['email' => 'admin@kanisasoft.co.tz'],
+            ['email' => 'support@kanisasoft.co.tz'],
             [
-                'full_name' => 'Test Admin',
+                'full_name' => 'KanisaSoft Support',
                 'gender' => 'M',
                 'birth_date' => '1990-01-01',
                 'birth_place' => 'Dar es Salaam',
@@ -22,8 +22,8 @@ class TestAdminSeeder extends Seeder
                 'children_count' => 0,
                 'zone' => 'MURUBOMBO',
                 'phone' => '255700000000',
-                'email' => 'admin@kanisasoft.co.tz',
-                'password' => Hash::make('password123'),
+                'email' => 'support@kanisasoft.co.tz',
+                'password' => Hash::make('Admin@2026'),
                 'role' => 'admin',
             ]
         );
