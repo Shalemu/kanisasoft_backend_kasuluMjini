@@ -35,7 +35,8 @@ class ServiceEventController extends Controller
         $this->mergeFirstFilled($request, 'preacher', ['mhubiri', 'minister']);
         $this->mergeFirstFilled($request, 'preacher_description', ['sermon', 'sermon_title', 'sermonTitle', 'mahubiri']);
         $this->mergeFirstFilled($request, 'message', ['ujumbe']);
-        $this->mergeFirstFilled($request, 'leaders_on_duty', ['service_leader', 'serviceLeader', 'worship_leader', 'worshipLeader', 'leader']);
+        $this->mergeFirstFilled($request, 'leaders_on_duty', ['duty_leader', 'dutyLeader', 'service_leader', 'serviceLeader', 'worship_leader', 'worshipLeader', 'leader']);
+        $this->mergeFirstFilled($request, 'duty_leader', ['leaders_on_duty', 'service_leader', 'serviceLeader', 'worship_leader', 'worshipLeader', 'leader']);
         $this->mergeFirstFilled($request, 'attendance_children', ['children', 'children_attendance', 'childrenAttendance']);
         $this->mergeFirstFilled($request, 'attendance_women', ['women', 'women_attendance', 'womenAttendance']);
         $this->mergeFirstFilled($request, 'attendance_men', ['men', 'men_attendance', 'menAttendance']);
@@ -66,6 +67,8 @@ class ServiceEventController extends Controller
             'search' => 'nullable|string|max:255',
             'category' => 'nullable|string|max:100',
             'date' => 'nullable|date',
+            'year' => 'nullable|integer|min:1900|max:2100',
+            'service_name' => 'nullable|string|max:255',
             'filter_date' => 'nullable|date',
             'from_date' => 'nullable|date',
             'to_date' => 'nullable|date|after_or_equal:from_date',
@@ -87,9 +90,17 @@ class ServiceEventController extends Controller
             $query->where('category', $request->category);
         }
 
+        if ($request->filled('service_name') && $request->service_name !== 'All') {
+            $query->where('service_name', $request->service_name);
+        }
+
         $selectedDate = $request->input('date', $request->input('filter_date'));
         if (filled($selectedDate)) {
             $query->whereDate('date', $selectedDate);
+        }
+
+        if ($request->filled('year')) {
+            $query->whereYear('date', $request->year);
         }
 
         if ($request->filled('from_date')) {
@@ -100,9 +111,25 @@ class ServiceEventController extends Controller
             $query->whereDate('date', '<=', $request->to_date);
         }
 
+        $summaryQuery = clone $query;
+        $summary = $summaryQuery
+            ->selectRaw('COUNT(*) as total_services')
+            ->selectRaw('COALESCE(SUM(COALESCE(attendance_children, 0) + COALESCE(attendance_women, 0) + COALESCE(attendance_men, 0)), 0) as total_attendance')
+            ->selectRaw('COALESCE(SUM(total_offerings), 0) as total_offerings')
+            ->first();
+
+        $totalServices = (int) $summary->total_services;
+        $totalAttendance = (int) $summary->total_attendance;
+
         return response()->json([
             'status' => 'success',
             'service_events' => $query->orderByDesc('date')->get(),
+            'summary' => [
+                'total_attendance' => $totalAttendance,
+                'total_services' => $totalServices,
+                'average_attendance' => $totalServices > 0 ? round($totalAttendance / $totalServices, 2) : 0,
+                'total_offerings' => (float) $summary->total_offerings,
+            ],
         ]);
     }
 
@@ -132,6 +159,7 @@ class ServiceEventController extends Controller
 
             'total_offerings' => 'nullable|numeric|min:0',
             'leaders_on_duty' => 'nullable|string|max:255',
+            'duty_leader' => 'nullable|string|max:255',
         ]);
 
         // Safe defaults
@@ -188,6 +216,7 @@ class ServiceEventController extends Controller
 
             'total_offerings' => 'nullable|numeric|min:0',
             'leaders_on_duty' => 'nullable|string|max:255',
+            'duty_leader' => 'nullable|string|max:255',
         ]);
 
         // Recalculate attendance safely

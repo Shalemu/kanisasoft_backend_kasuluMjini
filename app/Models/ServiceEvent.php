@@ -28,6 +28,7 @@ class ServiceEvent extends Model
         'total_attendance',
         'total_offerings',
         'leaders_on_duty',
+        'duty_leader',
     ];
 
     protected $casts = [
@@ -37,6 +38,6 @@ class ServiceEvent extends Model
         'attendance_women' => 'integer',
         'attendance_men' => 'integer',
         'total_attendance' => 'integer',
-        'total_offerings' => 'decimal:2',
+        'total_offerings' => 'float',
     ];
 }
