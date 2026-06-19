@@ -39,4 +39,28 @@ class AdminSeederTest extends TestCase
         $this->assertSame('admin', $admin->role);
         $this->assertTrue(Hash::check('Admin@2026', $admin->password));
     }
+
+    public function test_admin_seeder_updates_existing_support_admin_when_old_admin_also_exists(): void
+    {
+        $supportAdmin = User::factory()->create([
+            'email' => 'support@kanisasoft.co.tz',
+            'password' => Hash::make('OldPassword1!'),
+            'role' => 'member',
+        ]);
+
+        User::factory()->create([
+            'email' => 'lutufyo28@gmail.com',
+            'phone' => '255744141430',
+            'role' => 'admin',
+        ]);
+
+        $this->seed(AdminSeeder::class);
+
+        $supportAdmin->refresh();
+
+        $this->assertSame('KanisaSoft Support', $supportAdmin->full_name);
+        $this->assertSame('admin', $supportAdmin->role);
+        $this->assertTrue(Hash::check('Admin@2026', $supportAdmin->password));
+        $this->assertDatabaseHas('users', ['email' => 'lutufyo28@gmail.com']);
+    }
 }

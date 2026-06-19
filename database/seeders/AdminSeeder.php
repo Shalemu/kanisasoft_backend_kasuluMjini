@@ -10,9 +10,19 @@ class AdminSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::where('email', 'support@kanisasoft.co.tz')
-            ->orWhere('email', 'lutufyo28@gmail.com')
-            ->first();
+        $admin = User::where('email', 'support@kanisasoft.co.tz')->first();
+
+        if ($admin) {
+            $admin->update([
+                'full_name' => 'KanisaSoft Support',
+                'password' => Hash::make('Admin@2026'),
+                'role' => 'admin',
+            ]);
+
+            return;
+        }
+
+        $admin = User::where('email', 'lutufyo28@gmail.com')->first();
 
         ($admin ?? new User())->fill([
             'full_name' => 'KanisaSoft Support',
