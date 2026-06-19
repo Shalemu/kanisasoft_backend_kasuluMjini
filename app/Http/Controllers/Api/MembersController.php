@@ -23,6 +23,19 @@ use Illuminate\Validation\Rule;
 
 class MembersController extends Controller
 {
+    private const MARITAL_STATUSES = ['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'];
+
+    private const MEMBERSHIP_STATUS_LABELS = [
+        'active' => 'Washirika',
+        'pending' => 'Wanaosubiri Kuidhinishwa',
+        'rejected' => 'Waliokataliwa ushirika',
+        'deactivated' => 'Wasio hai',
+        'left' => 'Waliohama',
+        'detained' => 'Waliotengwa ushirika',
+        'deceased' => 'Waliofariki',
+        'lost' => 'Waliopoteza ushirika',
+    ];
+
     private const EXACT_FILTER_FIELDS = [
         'full_name',
         'membership_number',
@@ -145,6 +158,7 @@ class MembersController extends Controller
 
         return response()->json([
             'status' => 'success',
+            'membership_status_labels' => self::MEMBERSHIP_STATUS_LABELS,
             'members' => $members,
         ]);
     }
@@ -171,6 +185,7 @@ class MembersController extends Controller
             'status' => 'success',
             'filters' => $criteria,
             'saved_group_criteria' => $this->groupableCriteria($criteria),
+            'membership_status_labels' => self::MEMBERSHIP_STATUS_LABELS,
             'summary' => [
                 'total_members' => $members->count(),
                 'active_members' => $statusCounts->get('active', 0),
@@ -591,7 +606,11 @@ class MembersController extends Controller
             'number_of_children' => $request->input('number_of_children', $request->input('children_count')),
         ]);
 
-        if (! in_array($request->marital_status, ['Ndoa', 'Ameoa', 'Ameolewa'], true)) {
+        $request->merge([
+            'marital_status' => $this->normalizeMaritalStatus($request->input('marital_status'), $request->input('gender')),
+        ]);
+
+        if (! in_array($request->marital_status, ['Ameoa', 'Ameolewa'], true)) {
             $request->merge(['spouse_name' => null]);
         }
 
@@ -605,9 +624,9 @@ class MembersController extends Controller
             'birth_region' => 'nullable|string|max:255',
             'birth_ward' => 'nullable|string|max:255',
             'birth_street' => 'nullable|string|max:255',
-            'marital_status' => 'nullable|in:Ndoa,Bila ndoa,Ameoa,Ameolewa,Hajaoa,Hajaolewa,Mjane,Mgane',
+            'marital_status' => ['nullable', Rule::in(self::MARITAL_STATUSES)],
             'marriage_type' => 'nullable|in:Kikristo,Kiserikali,Kienyeji',
-            'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ndoa,Ameoa,Ameolewa',
+            'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ameoa,Ameolewa',
             'number_of_children' => 'nullable|integer|min:0',
             'residential_zone' => ['nullable', Rule::in($zoneValues)],
             'residential_ward' => 'nullable|string|max:255',
@@ -726,11 +745,10 @@ class MembersController extends Controller
             default => $request->gender ?? $member->gender,
         };
 
-        $maritalStatus = match ($request->marital_status ?? $member->marital_status) {
-            'Ndoa' => $gender === 'F' ? 'Ameolewa' : 'Ameoa',
-            'Bila ndoa' => $gender === 'F' ? 'Hajaolewa' : 'Hajaoa',
-            default => $request->marital_status ?? $member->marital_status,
-        };
+        $maritalStatus = $this->normalizeMaritalStatus(
+            $request->input('marital_status', $member->marital_status),
+            $gender
+        );
 
         $livesAlone = filter_var($request->lives_alone, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         $isAuthorized = filter_var($request->is_authorized, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
@@ -1045,6 +1063,7 @@ class MembersController extends Controller
             'Ametegwa ushirika' => 'detained',
             'Amefariki' => 'deceased',
             'Amepotea' => 'lost',
+            'Amepoteza ushirika' => 'lost',
             'Amejisajiri kimakosa' => 'deactivated',
         ];
 
@@ -1100,6 +1119,7 @@ class MembersController extends Controller
             'total_contributions' => $totalContributions,
             'pending_registrations' => $pendingRegistrations,
             'notification_count' => $pendingRegistrations,
+            'membership_status_labels' => self::MEMBERSHIP_STATUS_LABELS,
             'modules' => [
                 [
                     'key' => 'members',
@@ -1326,6 +1346,17 @@ class MembersController extends Controller
     private function isValidTanzaniaPhone(?string $phone): bool
     {
         return $phone === null || (bool) preg_match('/^255[0-9]{9}$/', $phone);
+    }
+
+    private function normalizeMaritalStatus(?string $status, ?string $gender): ?string
+    {
+        $status = filled($status) ? trim($status) : null;
+
+        return match ($status) {
+            'Ndoa' => $gender === 'F' ? 'Ameolewa' : 'Ameoa',
+            'Bila ndoa' => $gender === 'F' ? 'Hajaolewa' : 'Hajaoa',
+            default => $status,
+        };
     }
 
     /**

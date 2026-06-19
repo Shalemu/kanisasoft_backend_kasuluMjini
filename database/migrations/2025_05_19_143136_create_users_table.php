@@ -15,7 +15,7 @@ class CreateUsersTable extends Migration
             $table->enum('gender', ['M', 'F']); // ✅ Changed to standard values
             $table->date('birth_date');
             $table->string('birth_place');
-            $table->enum('marital_status', ['Ndoa', 'Bila ndoa']);
+            $table->enum('marital_status', ['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'])->nullable();
             $table->string('spouse_name')->nullable();
             $table->integer('children_count')->default(0);
             $table->string('zone');

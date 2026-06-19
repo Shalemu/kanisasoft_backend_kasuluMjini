@@ -28,7 +28,7 @@ class UserFactory extends Factory
             'gender' => fake()->randomElement(['M', 'F']),
             'birth_date' => fake()->date(),
             'birth_place' => fake()->city(),
-            'marital_status' => 'Bila ndoa',
+            'marital_status' => 'Hajaoa',
             'children_count' => 0,
             'zone' => fake()->city(),
             'phone' => fake()->unique()->numerify('255#########'),

@@ -65,7 +65,43 @@ class DemoFeedbackApiTest extends TestCase
             ->assertJsonPath('total', 1)
             ->assertJsonPath('summary.total_members', 1)
             ->assertJsonPath('export.rows.0.gender', 'F')
+            ->assertJsonPath('membership_status_labels.lost', 'Waliopoteza ushirika')
+            ->assertJsonPath('membership_status_labels.rejected', 'Waliokataliwa ushirika')
             ->assertJsonCount(1, 'members');
+    }
+
+    public function test_member_create_and_update_normalize_generic_marital_status_by_gender(): void
+    {
+        $created = $this->postJson('/api/admin/members', [
+            'full_name' => 'Admin Created Female',
+            'gender' => 'F',
+            'birth_date' => '1990-01-01',
+            'birth_place' => 'Kigoma',
+            'marital_status' => 'Bila ndoa',
+            'spouse_name' => 'Should Be Cleared',
+            'residential_zone' => 'MURUBOMBO',
+            'phone_number' => '0712345678',
+            'email' => 'admin-created-female@example.com',
+            'occupation' => 'Teacher',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ]);
+
+        $created->assertCreated()
+            ->assertJsonPath('member.marital_status', 'Hajaolewa')
+            ->assertJsonPath('user.marital_status', 'Hajaolewa')
+            ->assertJsonPath('member.spouse_name', null);
+
+        $memberId = $created->json('member.id');
+
+        $this->patchJson("/api/members/{$memberId}", [
+            'gender' => 'M',
+            'marital_status' => 'Ndoa',
+            'spouse_name' => 'Spouse Name',
+        ])->assertOk()
+            ->assertJsonPath('member.marital_status', 'Ameoa')
+            ->assertJsonPath('member.spouse_name', 'Spouse Name')
+            ->assertJsonPath('member.user.marital_status', 'Ameoa');
     }
 
     public function test_member_search_filter_uses_registration_fields_and_can_create_group(): void

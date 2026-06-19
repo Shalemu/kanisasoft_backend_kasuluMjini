@@ -18,6 +18,8 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    private const MARITAL_STATUSES = ['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'];
+
     /**
      * Convert any format to Tanzania standard: 255XXXXXXXXX
      */
@@ -45,6 +47,17 @@ class AuthController extends Controller
         return $num;
     }
 
+    private function normalizeMaritalStatus(?string $status, ?string $gender): ?string
+    {
+        $status = filled($status) ? trim($status) : null;
+
+        return match ($status) {
+            'Ndoa' => $gender === 'F' ? 'Ameolewa' : 'Ameoa',
+            'Bila ndoa' => $gender === 'F' ? 'Hajaolewa' : 'Hajaoa',
+            default => $status,
+        };
+    }
+
     /**
      * REGISTER USER
      */
@@ -59,6 +72,13 @@ class AuthController extends Controller
             },
             'phone' => $this->formatTanzaniaPhone($request->phone),
         ]);
+        $request->merge([
+            'marital_status' => $this->normalizeMaritalStatus($request->input('marital_status'), $request->input('gender')),
+        ]);
+
+        if (! in_array($request->marital_status, ['Ameoa', 'Ameolewa'], true)) {
+            $request->merge(['spouse_name' => null]);
+        }
 
         $zoneValues = ['MURUBOMBO', 'MURUSI B', 'KIGANAMO', 'MURUSI A', 'KUMUNYIKA B', 'KAGUNGA C', 'KUMUNYIKA A', 'KAGUNGA B', 'MURUBONA A', 'KAGUNGA A', 'MURUBONA B'];
 
@@ -70,7 +90,7 @@ class AuthController extends Controller
             'birth_region' => 'nullable|string|max:255',
             'birth_ward' => 'nullable|string|max:255',
             'birth_street' => 'nullable|string|max:255',
-            'marital_status' => 'nullable|in:Ameoa,Ameolewa,Hajaoa,Hajaolewa,Mjane,Mgane',
+            'marital_status' => ['nullable', Rule::in(self::MARITAL_STATUSES)],
             'marriage_type' => 'nullable|in:Kikristo,Kiserikali,Kienyeji',
             'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ameoa,Ameolewa',
             'children_count' => 'nullable|integer|min:0',
@@ -274,6 +294,13 @@ class AuthController extends Controller
             },
             'phone' => $this->formatTanzaniaPhone($request->phone ?? ''),
         ]);
+        $request->merge([
+            'marital_status' => $this->normalizeMaritalStatus($request->input('marital_status'), $request->input('gender')),
+        ]);
+
+        if (! in_array($request->marital_status, ['Ameoa', 'Ameolewa'], true)) {
+            $request->merge(['spouse_name' => null]);
+        }
 
         // Validation rules
         $zoneValues = ['MURUBOMBO', 'MURUSI B', 'KIGANAMO', 'MURUSI A', 'KUMUNYIKA B', 'KAGUNGA C', 'KUMUNYIKA A', 'KAGANGA B', 'MURUBONA A', 'KAGUNGA A', 'KAGUNGA B', 'MURUBONA B'];
@@ -286,7 +313,7 @@ class AuthController extends Controller
             'birth_region' => 'nullable|string|max:255',
             'birth_ward' => 'nullable|string|max:255',
             'birth_street' => 'nullable|string|max:255',
-            'marital_status' => ['nullable', Rule::in(['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'])],
+            'marital_status' => ['nullable', Rule::in(self::MARITAL_STATUSES)],
             'marriage_type' => 'nullable|in:Kikristo,Kiserikali,Kienyeji',
             'spouse_name' => 'sometimes|required_if:marital_status,Ameoa,Ameolewa|string|max:255',
             'children_count' => 'nullable|integer|min:0',
@@ -439,6 +466,13 @@ class AuthController extends Controller
             },
             'phone' => $request->has('phone') ? $this->formatTanzaniaPhone($request->phone ?? '') : $user->phone,
         ]);
+        $request->merge([
+            'marital_status' => $this->normalizeMaritalStatus($request->input('marital_status'), $request->input('gender')),
+        ]);
+
+        if (! in_array($request->marital_status, ['Ameoa', 'Ameolewa'], true)) {
+            $request->merge(['spouse_name' => null]);
+        }
 
         $zoneValues = ['MURUBOMBO', 'MURUSI B', 'KIGANAMO', 'MURUSI A', 'KUMUNYIKA B', 'KAGUNGA C', 'KUMUNYIKA A', 'KAGANGA B', 'MURUBONA A', 'KAGUNGA A', 'KAGUNGA B', 'MURUBONA B'];
 
@@ -451,7 +485,7 @@ class AuthController extends Controller
             'birth_district' => 'nullable|string|max:255',
             'birth_ward' => 'nullable|string|max:255',
             'birth_street' => 'nullable|string|max:255',
-            'marital_status' => ['nullable', Rule::in(['Ameoa', 'Ameolewa', 'Hajaoa', 'Hajaolewa', 'Mjane', 'Mgane'])],
+            'marital_status' => ['nullable', Rule::in(self::MARITAL_STATUSES)],
             'marriage_type' => 'nullable|in:Kikristo,Kiserikali,Kienyeji',
             'spouse_name' => 'nullable|string|max:255|required_if:marital_status,Ameoa,Ameolewa',
             'children_count' => 'nullable|integer|min:0',

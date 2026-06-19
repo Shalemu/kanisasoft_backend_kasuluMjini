@@ -32,7 +32,7 @@ class RegisteredUserController extends Controller
             'gender' => 'M',
             'birth_date' => now()->toDateString(),
             'birth_place' => 'Unknown',
-            'marital_status' => 'Bila ndoa',
+            'marital_status' => 'Hajaoa',
             'children_count' => 0,
             'zone' => 'Unknown',
             'phone' => 'test-'.Str::uuid(),
