@@ -29,6 +29,7 @@ class SMSController extends Controller
             'user_id' => 'nullable',
             'recipient_id' => 'nullable',
             'selected_member_id' => 'nullable',
+            'group_id' => 'nullable',
             'message' => 'required|string',
             'phone' => 'nullable|string',       // direct phone
             'email' => 'nullable|email',        // direct email
@@ -43,6 +44,7 @@ class SMSController extends Controller
             'user_id',
             'recipient_id',
             'selected_member_id',
+            'group_id',
         ]);
         $message = $request->message;
         $directPhone = $request->phone ? $this->formatTanzaniaPhone($request->phone) : null;
@@ -90,7 +92,9 @@ class SMSController extends Controller
                         break;
                     case 'washiriki':
                     case 'members':
-                        $recipients = Member::where('membership_status', 'active')->get();
+                        $recipients = Member::with('user:id,phone,email')
+                            ->where('membership_status', 'active')
+                            ->get();
                         break;
                     case 'male':
                     case 'm':
@@ -101,9 +105,17 @@ class SMSController extends Controller
                         $recipients = User::where('gender', 'F')->get();
                         break;
                     case 'group':
-                        $group = Group::where('name', $receiver)->first();
+                        $group = Group::query()
+                            ->when(
+                                $receiverField === 'group_id' || ctype_digit((string) $receiver),
+                                fn ($query) => $query->whereKey((int) $receiver),
+                                fn ($query) => $query->where('name', $receiver)
+                            )
+                            ->first();
                         if ($group) {
-                            $recipients = $group->members()->get();
+                            $recipients = $group->members()
+                                ->with('user:id,phone,email')
+                                ->get();
                         }
                         break;
                     case 'individual':
@@ -152,8 +164,15 @@ class SMSController extends Controller
 
         foreach ($recipients as $recipient) {
             $recipientName = $recipient->name ?? $recipient->full_name ?? 'Recipient';
-            $recipientPhone = $recipient->phone_number ?? $recipient->member?->phone_number ?? $recipient->phone ?? null;
-            $recipientEmail = $recipient->email ?? $recipient->member?->email ?? null;
+            $recipientPhone = $recipient->phone_number
+                ?? $recipient->user?->phone
+                ?? $recipient->member?->phone_number
+                ?? $recipient->phone
+                ?? null;
+            $recipientEmail = $recipient->email
+                ?? $recipient->user?->email
+                ?? $recipient->member?->email
+                ?? null;
 
             // Send SMS
             if ($recipientPhone) {

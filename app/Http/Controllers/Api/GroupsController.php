@@ -10,14 +10,33 @@ use Illuminate\Support\Facades\Validator;
 
 class GroupsController extends Controller
 {
+    private function memberContactPayload(Member $member): array
+    {
+        $phone = $member->phone_number ?: $member->user?->phone;
+        $email = $member->email ?: $member->user?->email;
+
+        return [
+            'id' => $member->id,
+            'user_id' => $member->user_id,
+            'full_name' => $member->full_name,
+            'membership_number' => $member->membership_number,
+            'phone_number' => $phone,
+            'phone' => $phone,
+            'email' => $email,
+            'gender' => $member->gender,
+            'residential_zone' => $member->residential_zone,
+            'membership_status' => $member->membership_status,
+        ];
+    }
+
     private function groupStats($members): array
     {
         return [
             'total_members' => $members->count(),
             'active_members' => $members->where('membership_status', 'active')->count(),
             'pending_members' => $members->where('membership_status', 'pending')->count(),
-            'by_gender' => $members->groupBy(fn ($member) => $member->gender ?? 'unknown')->map->count()->all(),
-            'by_zone' => $members->groupBy(fn ($member) => $member->residential_zone ?? 'Haijajazwa')->map->count()->all(),
+            'by_gender' => $members->groupBy(fn ($member) => data_get($member, 'gender') ?? 'unknown')->map->count()->all(),
+            'by_zone' => $members->groupBy(fn ($member) => data_get($member, 'residential_zone') ?? 'Haijajazwa')->map->count()->all(),
         ];
     }
 
@@ -58,18 +77,10 @@ class GroupsController extends Controller
             ], 404);
         }
 
-        $members = $group->members()->get()->map(function ($member) {
-            return [
-                'id' => $member->id,
-                'full_name' => $member->full_name,
-                'membership_number' => $member->membership_number,
-                'phone_number' => $member->phone_number,
-                'email' => $member->email,
-                'gender' => $member->gender,
-                'residential_zone' => $member->residential_zone,
-                'membership_status' => $member->membership_status,
-            ];
-        });
+        $members = $group->members()
+            ->with('user:id,phone,email')
+            ->get()
+            ->map(fn (Member $member) => $this->memberContactPayload($member));
         $statistics = $this->groupStats($members);
 
         return response()->json([
@@ -95,8 +106,10 @@ class GroupsController extends Controller
     public function show(int $id)
     {
         $group = Group::with([
-            'leader:id,full_name,membership_number,phone_number,email,gender',
-            'members:id,full_name,membership_number,phone_number,email,gender,residential_zone,membership_status',
+            'leader:id,user_id,full_name,membership_number,phone_number,email,gender,residential_zone,membership_status',
+            'leader.user:id,phone,email',
+            'members:id,user_id,full_name,membership_number,phone_number,email,gender,residential_zone,membership_status',
+            'members.user:id,phone,email',
         ])->withCount('members')->find($id);
 
         if (!$group) {
@@ -107,6 +120,11 @@ class GroupsController extends Controller
         }
 
         $statistics = $this->groupStats($group->members);
+        $members = $group->members
+            ->map(fn (Member $member) => $this->memberContactPayload($member));
+        $leader = $group->leader
+            ? $this->memberContactPayload($group->leader)
+            : null;
 
         return response()->json([
             'status' => 'success',
@@ -120,9 +138,9 @@ class GroupsController extends Controller
                 'created_at' => $group->created_at,
                 'updated_at' => $group->updated_at,
             ],
-            'members' => $group->members,
-            'leaders' => $group->leader ? [$group->leader] : [],
-            'leader' => $group->leader,
+            'members' => $members,
+            'leaders' => $leader ? [$leader] : [],
+            'leader' => $leader,
             'total_members' => $group->members_count,
             'statistics' => $statistics,
             'stats' => $statistics,

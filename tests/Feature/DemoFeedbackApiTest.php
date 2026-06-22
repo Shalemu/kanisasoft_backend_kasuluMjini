@@ -549,6 +549,30 @@ class DemoFeedbackApiTest extends TestCase
             ->assertJsonCount(2, 'members');
     }
 
+    public function test_group_details_use_linked_user_phone_when_member_phone_is_empty(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'mshirika',
+            'phone' => '255712345670',
+        ]);
+        $member = $this->createMember([
+            'user_id' => $user->id,
+            'phone_number' => null,
+        ]);
+        $group = Group::create(['name' => 'Christian Marriages']);
+        $group->members()->attach($member->id);
+
+        $this->getJson("/api/groups/{$group->id}")
+            ->assertOk()
+            ->assertJsonPath('members.0.phone_number', '255712345670')
+            ->assertJsonPath('members.0.phone', '255712345670');
+
+        $this->getJson("/api/groups/{$group->id}/members")
+            ->assertOk()
+            ->assertJsonPath('members.0.phone_number', '255712345670')
+            ->assertJsonPath('members.0.phone', '255712345670');
+    }
+
     public function test_member_update_accepts_255_phone_number_format(): void
     {
         $member = $this->createMember([
@@ -797,6 +821,42 @@ class DemoFeedbackApiTest extends TestCase
             'type' => 'mshiriki',
             'status' => 'Sent',
         ]);
+    }
+
+    public function test_sms_can_send_to_group_id_using_linked_user_phone(): void
+    {
+        Http::fake([
+            '*' => Http::response('Sent', 200),
+        ]);
+
+        $user = User::factory()->create([
+            'role' => 'mshirika',
+            'phone' => '255712345671',
+        ]);
+        $member = $this->createMember([
+            'user_id' => $user->id,
+            'phone_number' => null,
+        ]);
+        $group = Group::create(['name' => 'Christian Marriages']);
+        $group->members()->attach($member->id);
+
+        $this->postJson('/api/send-sms', [
+            'type' => 'group',
+            'receiver' => (string) $group->id,
+            'message' => 'Group message',
+        ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('summary.recipients', 1)
+            ->assertJsonPath('summary.sms_sent', 1);
+
+        $this->assertDatabaseHas('sms_logs', [
+            'recipient' => '255712345671',
+            'receiver' => (string) $group->id,
+            'type' => 'group',
+            'status' => 'Sent',
+        ]);
+        Http::assertSentCount(1);
     }
 
     public function test_sms_can_resolve_member_id_without_type(): void
