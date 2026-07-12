@@ -26,6 +26,9 @@ use App\Http\Controllers\Api\SadakaController;
 use App\Http\Controllers\Api\UserRoleController;
 use App\Http\Controllers\Api\ZakaController;
 use App\Http\Controllers\Api\UserSettingsController;
+use App\Http\Controllers\Api\PaymentAccountController;
+use App\Http\Controllers\Api\PreacherController;
+use App\Http\Controllers\Api\ChurchInformationController;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -194,7 +197,41 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Finance Report (aggregated)
     Route::get('/finance-report', [FinanceReportController::class, 'index']);
+
+    // Payment account 
+    Route::apiResource('payment-accounts', PaymentAccountController::class);
+
+    // Preaches
+   Route::apiResource('preachings',PreacherController::class);
+
+// Church Information (Admin)
+Route::get('/church-information', [
+    ChurchInformationController::class,
+    'index'
+]);
+
+Route::post('/church-information', [
+    ChurchInformationController::class,
+    'store'
+]);
+
+Route::put('/church-information/{id}', [
+    ChurchInformationController::class,
+    'update'
+]);
+
+Route::delete('/church-information/{id}', [
+    ChurchInformationController::class,
+    'destroy'
+]);
+
 });
+
+// Public share link
+Route::get(
+    '/church-information/{slug}',
+    [ChurchInformationController::class,'show']
+);
 
 // File download/view routes — public so browser can access directly without Bearer token
 Route::get('/resources/{id}/view', [RasilimaliController::class, 'view'])->name('resources.view');
