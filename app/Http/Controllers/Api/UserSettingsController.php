@@ -215,71 +215,74 @@ class UserSettingsController extends Controller
             'support' => [
                 'channels' => [
                     [
-                        'type' => 'email',
-                        'label' => 'Email support',
-                        'value' => config('mail.from.address'),
-                    ],
-                    [
                         'type' => 'phone',
-                        'label' => 'Phone support',
-                        'value' => config('services.support.phone'),
+                        'label' => 'Namba ya Kupiga',
+                        'value' => '0760 900 500',
                     ],
                     [
                         'type' => 'whatsapp',
-                        'label' => 'WhatsApp support',
-                        'value' => config('services.support.whatsapp'),
+                        'label' => 'WhatsApp',
+                        'value' => '0760 900 500',
+                    ],
+                    [
+                        'type' => 'email',
+                        'label' => 'Email',
+                        'value' => 'support@kanisasoft.co.tz',
                     ],
                 ],
-                'categories' => [
-                    'account',
-                    'members',
-                    'contributions',
-                    'events',
-                    'groups',
-                    'reports',
-                    'technical',
-                    'general',
+                'departments' => ['billing', 'support'],
+                'user_info' => [
+                    'name'   => $user->full_name,
+                    'phone'  => $user->phone,
+                    'email'  => $user->email,
+                    'church' => $user->church_name ?? $user->member?->church_name ?? 'Kanisa',
                 ],
-                'priorities' => ['low', 'normal', 'high', 'urgent'],
                 'recent_requests' => SupportRequest::where('user_id', $user->id)
                     ->latest()
                     ->limit(10)
                     ->get(),
-                'system' => [
-                    'app' => config('app.name'),
-                    'environment' => config('app.env'),
-                    'timezone' => config('app.timezone'),
-                ],
             ],
         ]);
     }
 
     public function createSupportRequest(Request $request)
     {
+        $user = $request->user();
+
         $validated = $request->validate([
-            'category' => ['required', Rule::in(['account', 'members', 'contributions', 'events', 'groups', 'reports', 'technical', 'general'])],
-            'priority' => ['nullable', Rule::in(['low', 'normal', 'high', 'urgent'])],
-            'subject' => ['required', 'string', 'max:255'],
-            'message' => ['required', 'string', 'max:5000'],
-            'contact_email' => ['nullable', 'email', 'max:255'],
-            'contact_phone' => ['nullable', 'string', 'max:30'],
+            'department' => ['required', 'string', 'in:billing,support'],
+            'message'    => ['required', 'string', 'max:5000'],
+            'name'       => ['nullable', 'string', 'max:255'],
+            'phone'      => ['nullable', 'string', 'max:30'],
+            'email'      => ['nullable', 'email', 'max:255'],
+            'church'     => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Auto-fill from user account
+        $name   = $validated['name']   ?? $user->full_name;
+        $phone  = $validated['phone']  ?? $user->phone;
+        $email  = $validated['email']  ?? $user->email;
+        $church = $validated['church'] ?? $user->church_name ?? $user->member?->church_name ?? 'Kanisa';
+
         $supportRequest = SupportRequest::create([
-            'user_id' => $request->user()->id,
-            'category' => $validated['category'],
-            'priority' => $validated['priority'] ?? 'normal',
-            'subject' => $validated['subject'],
-            'message' => $validated['message'],
-            'contact_email' => $validated['contact_email'] ?? $request->user()->email,
-            'contact_phone' => $validated['contact_phone'] ?? $request->user()->phone,
-            'status' => 'open',
+            'user_id'        => $user->id,
+            'department'      => $validated['department'],
+            'name'            => $name,
+            'phone'           => $phone,
+            'email'           => $email,
+            'church'          => $church,
+            'subject'          => ucfirst($validated['department']) . ' support',
+            'message'         => $validated['message'],
+            'contact_email'   => $email,
+            'contact_phone'   => $phone,
+            'category'        => $validated['department'],
+            'status'          => 'open',
         ]);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Support request submitted successfully.',
-            'support_request' => $supportRequest,
+            'message' => 'Ujumbe wako umetumwa kwa KanisaSoft.',
+            'data' => $supportRequest,
         ], 201);
     }
 

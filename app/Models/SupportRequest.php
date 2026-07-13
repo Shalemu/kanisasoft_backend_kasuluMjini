@@ -11,10 +11,15 @@ class SupportRequest extends Model
 
     protected $fillable = [
         'user_id',
+        'department',
         'category',
         'priority',
         'subject',
         'message',
+        'name',
+        'phone',
+        'email',
+        'church',
         'contact_email',
         'contact_phone',
         'status',
