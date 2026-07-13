@@ -174,6 +174,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/support', [UserSettingsController::class, 'support']);
     Route::get('/admin/support/requests', [UserSettingsController::class, 'supportRequests']);
     Route::post('/admin/support/requests', [UserSettingsController::class, 'createSupportRequest']);
+    // Support tickets — admin only (church admin contacts KanisaSoft)
+    Route::post('/support-tickets', [UserSettingsController::class, 'createSupportRequest']);
 
     // Daily Word
     Route::get('/daily-words/today', [DailyWordController::class, 'today']);
