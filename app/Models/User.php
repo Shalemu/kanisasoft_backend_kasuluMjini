@@ -10,7 +10,6 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use DateTimeInterface;
 use App\Notifications\ResetPasswordNotification;
-use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable implements MustVerifyEmailContract
 {
@@ -71,7 +70,13 @@ class User extends Authenticatable implements MustVerifyEmailContract
             return null;
         }
 
-        return Storage::disk('public')->url($this->profile_picture_path);
+        $path = ltrim($this->profile_picture_path, '/');
+
+        if (str_starts_with($path, 'storage/')) {
+            return url($path);
+        }
+
+        return url('storage/' . $path);
     }
 
     // -------------------------

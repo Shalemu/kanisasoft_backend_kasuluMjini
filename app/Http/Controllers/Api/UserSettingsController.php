@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\SupportRequest;
+use App\Models\User;
 use App\Models\UserSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -61,6 +62,19 @@ class UserSettingsController extends Controller
         return array_replace_recursive($this->defaultAccountSettings(), is_array($decoded) ? $decoded : []);
     }
 
+    private function profilePayload(User $user): array
+    {
+        return [
+            'id' => $user->id,
+            'full_name' => $user->full_name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'role' => $user->role,
+            'profile_picture_url' => $user->profile_picture_url,
+            'profile_picture_path' => $user->profile_picture_path,
+        ];
+    }
+
     public function getVerse(Request $request)
     {
         $user = $request->user();
@@ -92,15 +106,7 @@ class UserSettingsController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'profile' => [
-                'id' => $user->id,
-                'full_name' => $user->full_name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'role' => $user->role,
-                'profile_picture_url' => $user->profile_picture_url,
-                'profile_picture_path' => $user->profile_picture_path,
-            ],
+            'profile' => $this->profilePayload($user),
         ]);
     }
 
@@ -126,19 +132,12 @@ class UserSettingsController extends Controller
         }
 
         $user->update($updates);
+        $user = $user->fresh();
 
         return response()->json([
             'status' => 'success',
             'message' => 'Profile updated successfully.',
-            'profile' => [
-                'id' => $user->id,
-                'full_name' => $user->fresh()->full_name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'role' => $user->role,
-                'profile_picture_url' => $user->fresh()->profile_picture_url,
-                'profile_picture_path' => $user->fresh()->profile_picture_path,
-            ],
+            'profile' => $this->profilePayload($user),
         ]);
     }
 

@@ -33,13 +33,28 @@ class AdminProfileApiTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonPath('status', 'success')
-            ->assertJsonPath('profile.full_name', 'New Admin Name');
+            ->assertJsonPath('profile.full_name', 'New Admin Name')
+            ->assertJsonStructure([
+                'profile' => [
+                    'profile_picture_path',
+                    'profile_picture_url',
+                ],
+            ]);
 
         $user->refresh();
 
         $this->assertSame('New Admin Name', $user->full_name);
         $this->assertNotNull($user->profile_picture_path);
         Storage::disk('public')->assertExists($user->profile_picture_path);
+
+        $response
+            ->assertJsonPath('profile.profile_picture_path', $user->profile_picture_path)
+            ->assertJsonPath('profile.profile_picture_url', url('storage/' . $user->profile_picture_path));
+
+        $this->getJson('/api/admin/profile')
+            ->assertOk()
+            ->assertJsonPath('profile.profile_picture_path', $user->profile_picture_path)
+            ->assertJsonPath('profile.profile_picture_url', url('storage/' . $user->profile_picture_path));
     }
 
     public function test_account_settings_are_returned_with_defaults_and_can_be_partially_updated(): void
