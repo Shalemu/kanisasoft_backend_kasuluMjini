@@ -371,7 +371,7 @@ class SMSController extends Controller
 
     public function logs()
     {
-        $logs = SmsLog::latest()->limit(100)->get()->map(function ($log) {
+       $logs = SmsLog::latest()->get()->map(function ($log) {
             return [
                 'id' => $log->id,
                 'recipient' => $log->recipient,
