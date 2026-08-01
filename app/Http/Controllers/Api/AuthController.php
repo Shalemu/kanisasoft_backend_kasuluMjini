@@ -80,7 +80,7 @@ class AuthController extends Controller
             $request->merge(['spouse_name' => null]);
         }
 
-        $zoneValues = ['MURUBOMBO', 'MURUSI B', 'KIGANAMO', 'MURUSI A', 'KUMUNYIKA B', 'KAGUNGA C', 'KUMUNYIKA A', 'KAGUNGA B', 'MURUBONA A', 'KAGUNGA A', 'MURUBONA B'];
+        $zoneValues = ['MURUBOMBO', 'MURUSI B', 'KIGANAMO', 'MURUSI A', 'KUMUNYIKA B', 'KAGUNGA C', 'KUMUNYIKA A', 'KAGUNGA B', 'MURUBONA A', 'KAGUNGA A', 'MURUBONA B', 'MURUBONA B'];
 
         $request->validate([
             'full_name' => 'required|string|max:255',
